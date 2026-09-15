@@ -1,0 +1,8 @@
+{
+  "name": "O Cavaleiro Arruinado_V2",
+  "description": "RPG de Ação em Plataforma 2D dark fantasy desenhado à caneta esferográfica azul sobre pergaminho.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
