@@ -66,6 +66,8 @@ export class GameEngine {
   // Câmera
   public cameraX: number = 0;
   public cameraY: number = 0;
+  public isCutscenePlaying: boolean = false;
+  public isAutoWalkingToBoss: boolean = false;
 
   // Sistemas de Efeitos Visuais
   public particles: Particle[] = [];
@@ -105,11 +107,11 @@ export class GameEngine {
     this.inventory = new InventoryManager();
 
     // Inicializa Gerenciador de Seções do Mapa (Pátio do Mosteiro como ponto inicial)
-    this.sectionManager = new SectionManager('monastery_courtyard');
+    this.sectionManager = new SectionManager('sanctuary_interior');
     this.level = new Level(this.sectionManager.currentSection);
 
     // Inicia Jogador
-    this.player = new Player(100, 360);
+    this.player = new Player(80, 390);
 
     // Configura Callback de Transição entre Seções
     this.setupSectionTransitions();
@@ -142,6 +144,19 @@ export class GameEngine {
       this.loadSectionNPCs(section);
       this.loadSectionDestructibles(section);
       this.enemyRespawnQueue = [];
+      
+      // Cutscene now triggered by proximity (autoTriggerDistance)
+      
+      // Manage BGM based on section
+      if (section.id === 'sanctuary_interior') {
+        // Assume the user will upload a file named bgm_sanctuary.mp3 to public/ 
+        // For now, it will try to load this URL.
+        soundManager.playBGM('/bgm_sanctuary.mp3', 0.4);
+        this.isCutscenePlaying = false;
+        this.isAutoWalkingToBoss = false;
+      } else {
+        soundManager.fadeOutBGM(1500);
+      }
     });
   }
 
@@ -153,7 +168,11 @@ export class GameEngine {
 
   public loadSectionNPCs(section: SectionData) {
     this.npcs = section.npcConfigs.map(cfg => {
-      return new NPC(cfg.id, cfg.name, cfg.title, cfg.x, cfg.y, cfg.dialogs, cfg.role);
+      const npc = new NPC(cfg.id, cfg.name, cfg.title, cfg.x, cfg.y, cfg.dialogs, cfg.role);
+      if (cfg.autoTriggerDistance) {
+        npc.autoTriggerDistance = cfg.autoTriggerDistance;
+      }
+      return npc;
     });
   }
 
@@ -192,9 +211,9 @@ export class GameEngine {
   }
 
   public resetGame() {
-    this.sectionManager = new SectionManager('monastery_courtyard');
+    this.sectionManager = new SectionManager('sanctuary_interior');
     this.setupSectionTransitions();
-    this.player = new Player(100, 360);
+    this.player = new Player(80, 390);
     this.inventory = new InventoryManager();
     this.level = new Level(this.sectionManager.currentSection);
     this.particles = [];
@@ -465,9 +484,19 @@ export class GameEngine {
     this.inventory.update(dt);
 
     // 2. Atualiza Jogador
+    
+    // Lock inputs if playing a cutscene
+    let activeInput = this.input;
+    if (this.isCutscenePlaying) {
+      activeInput = { left: false, right: false, jump: false, dash: false, attack: false, interact: false, useSalt: false };
+      if (this.isAutoWalkingToBoss) {
+        activeInput.right = true; // Força andar para a direita
+      }
+    }
+
     this.player.update(
       dt,
-      this.input,
+      activeInput,
       this.level.platforms,
       this.inventory.hasSaltCoating,
       () => this.triggerUseSalt()
@@ -487,13 +516,36 @@ export class GameEngine {
         (pCenterY - npcCenterY) * (pCenterY - npcCenterY)
       );
 
+      // Distância de interação manual (E)
       if (dist < 85) {
         this.activeNpcNearby = npc;
-        if (this.input.interact && this.callbacks.onOpenNpcDialog) {
+        if (this.input.interact && this.callbacks.onOpenNpcDialog && !this.isCutscenePlaying) {
+          this.player.vx = 0; // stop player
+          this.isCutscenePlaying = true; // Lock player movement
           soundManager.playNpcDialog();
           this.callbacks.onOpenNpcDialog(npc);
           this.input.interact = false; // consome tecla de interação
         }
+      }
+      
+      // Auto-trigger distance (para bosses/cutscenes)
+      if (npc.autoTriggerDistance && dist < npc.autoTriggerDistance && !npc.hasTriggeredAutoDialog) {
+        this.isAutoWalkingToBoss = false;
+        npc.hasTriggeredAutoDialog = true;
+        this.input.left = false;
+        this.input.right = false;
+        this.input.jump = false;
+        this.input.attack = false;
+        this.player.vx = 0; // Para imediatamente o movimento
+        this.isCutscenePlaying = true;
+        
+        // Aguarda 1 segundo antes de abrir o diálogo
+        setTimeout(() => {
+          if (this.callbacks.onOpenNpcDialog) {
+            soundManager.playNpcDialog();
+            this.callbacks.onOpenNpcDialog(npc);
+          }
+        }, 1000);
       }
     }
 

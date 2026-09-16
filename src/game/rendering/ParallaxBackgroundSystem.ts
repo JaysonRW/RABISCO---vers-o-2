@@ -31,6 +31,7 @@ export class ParallaxBackgroundSystem {
   private monasteryMountainsBackBuffer: HTMLCanvasElement | null = null;
   private monasteryMountainsBuffer: HTMLCanvasElement | null = null;
   private monasteryCourtyardBuffer: HTMLCanvasElement | null = null;
+  private crimsonSanctuaryBuffer: HTMLCanvasElement | null = null;
   private monasteryCastlesBuffer: HTMLCanvasElement | null = null;
   private monasteryCloudsBuffer: HTMLCanvasElement | null = null;
 
@@ -55,6 +56,8 @@ export class ParallaxBackgroundSystem {
     this.loadMountainsImage();
     this.loadMountainsBackImage();
     this.loadCourtyardImage();
+    this.loadSanctuaryImage();
+    this.loadFireFrames();
   }
 
   private loadCourtyardImage() {
@@ -72,7 +75,7 @@ export class ParallaxBackgroundSystem {
       ctx.clearRect(0, 0, w, h);
       
       const drawH = 380;
-      const drawW = drawH * (img.width / img.height);
+      const drawW = Math.max(10, drawH * (img.width / img.height));
       
       for (let x = 0; x < w; x += drawW) {
         ctx.drawImage(img, x, h - drawH, drawW, drawH);
@@ -188,6 +191,35 @@ export class ParallaxBackgroundSystem {
         type: i % 3 === 0 ? 'ink_speck' : 'mist_mote',
       });
     }
+  }
+
+
+  private sanctuaryImg: HTMLImageElement | null = null;
+  private fireFrames: HTMLImageElement[] = [];
+  private fireFramesLoaded = false;
+
+  private loadFireFrames() {
+    if (typeof window === 'undefined') return;
+    const urls = ['/fogo1.png', '/fogo2.png', '/fogo3.png', '/fogo4.png'];
+    let loaded = 0;
+    urls.forEach((url, i) => {
+      const img = new Image();
+      img.src = url;
+      img.onload = () => {
+        this.fireFrames[i] = img;
+        loaded++;
+        if (loaded === urls.length) this.fireFramesLoaded = true;
+      };
+    });
+  }
+
+  private loadSanctuaryImage() {
+    if (typeof window === 'undefined') return;
+    const img = new Image();
+    img.src = '/fundo_santuario.png';
+    img.onload = () => {
+      this.sanctuaryImg = img;
+    };
   }
 
   private initBuffers() {
@@ -1103,10 +1135,12 @@ export class ParallaxBackgroundSystem {
       this.renderForestBiome(ctx, cameraX, cameraY);
     } else if (theme === 'CRYPT') {
       this.renderCryptBiome(ctx, cameraX, cameraY);
+    } else if (theme === 'CRIMSON_SANCTUARY') {
+      this.renderCrimsonSanctuaryBiome(ctx, cameraX, cameraY, dt);
     }
 
     // 4. Partículas e Bruma Atmosférica Móvel (VFX MÓVEL - Prancha 04)
-    this.renderAtmosphericVFX(ctx, cameraX, dt);
+    this.renderAtmosphericVFX(ctx, cameraX, dt, theme);
   }
 
   // Renderiza Parallax do Mosteiro / Montanhas / Castelos / Nuvens
@@ -1304,4 +1338,61 @@ export class ParallaxBackgroundSystem {
 
     ctx.restore();
   }
+
+  // Renderiza Parallax do Santuário Carmim
+private renderCrimsonSanctuaryBiome(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number, dt: number) {
+    const w = GAME_CONFIG.CANVAS_WIDTH;
+    const h = GAME_CONFIG.CANVAS_HEIGHT;
+    
+    ctx.save();
+    
+    ctx.fillStyle = '#FFFFFF'; // White
+    ctx.fillRect(0, 0, w, h);
+    
+    // Draw animated fire behind sanctuary
+    if (this.fireFramesLoaded && this.fireFrames.length === 4) {
+      const fps = 8; // Adjust animation speed
+      const frameIndex = Math.floor(this.animTimer * fps) % 4;
+      const fireImg = this.fireFrames[frameIndex];
+      
+      if (fireImg) {
+        const fireParallaxFactor = 0.05; // moves slightly slower to feel distant
+        const drawH = h;
+        const drawW = Math.max(10, drawH * (fireImg.width / fireImg.height));
+        const loopWidth = drawW;
+        const offset = ((cameraX * fireParallaxFactor) % loopWidth + loopWidth) % loopWidth;
+        
+        ctx.globalCompositeOperation = 'source-over';
+        let currentX = -offset;
+        while (currentX < w) {
+          ctx.drawImage(fireImg, currentX, 0, drawW, drawH);
+          currentX += loopWidth;
+        }
+      }
+    }
+    
+    if (this.sanctuaryImg) {
+      const parallaxFactor = 0.15;
+      
+      const drawH = h;
+      const drawW = Math.max(10, drawH * (this.sanctuaryImg.width / this.sanctuaryImg.height));
+      
+      const loopWidth = drawW; // Instead of this.loopWidth, use the image's computed width
+      const offset = ((cameraX * parallaxFactor) % loopWidth + loopWidth) % loopWidth;
+      
+      ctx.globalCompositeOperation = 'source-over';
+      
+      // Draw enough copies to cover the screen
+      let currentX = -offset;
+      while (currentX < w) {
+        ctx.drawImage(this.sanctuaryImg, currentX, 0, drawW, drawH);
+        currentX += loopWidth;
+      }
+    }
+    
+    this.renderLowGroundMist(ctx, cameraX);
+    
+    ctx.restore();
+  }
+
 }

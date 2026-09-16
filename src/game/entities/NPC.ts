@@ -10,7 +10,7 @@ import { Rect } from '../types';
 export interface DialogChoice {
   text: string;
   soulCost?: number;
-  actionId?: 'HEAL' | 'REFILL_SALT' | 'BLESS_STAMINA' | 'CLOSE';
+  actionId?: 'HEAL' | 'REFILL_SALT' | 'BLESS_STAMINA' | 'CLOSE' | 'START_CLIMAX';
 }
 
 export interface NpcDialogNode {
@@ -30,6 +30,8 @@ export class NPC {
   public height: number = 62;
   public dialogs: NpcDialogNode[];
   public currentDialogId: string;
+  public autoTriggerDistance?: number;
+  public hasTriggeredAutoDialog: boolean = false;
   public animTime: number = 0;
   public iconType: 'HERMIT' | 'SPIRIT';
 

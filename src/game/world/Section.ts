@@ -8,7 +8,7 @@ import { Direction, Rect } from '../types';
 import { PlatformData, SaltAltar, LoreNote } from './Level';
 import { NpcDialogNode } from '../entities/NPC';
 
-export type BiomeTheme = 'MONASTERY' | 'FOREST' | 'CRYPT';
+export type BiomeTheme = 'MONASTERY' | 'FOREST' | 'CRYPT' | 'CRIMSON_SANCTUARY';
 
 export interface EdgeTrigger {
   id: string;
@@ -38,6 +38,7 @@ export interface NpcSpawnConfig {
   y: number;
   dialogs: NpcDialogNode[];
   role: 'HERMIT' | 'SPIRIT';
+  autoTriggerDistance?: number;
 }
 
 export interface DestructibleConfig {
@@ -64,6 +65,52 @@ export interface SectionData {
 }
 
 export const SECTIONS_DATA: Record<string, SectionData> = {
+
+  sanctuary_interior: {
+    id: 'sanctuary_interior',
+    name: 'Santuário Carmim',
+    subtitle: 'O Núcleo da Corrupção',
+    theme: 'CRIMSON_SANCTUARY',
+    width: 960,
+    height: 540,
+    platforms: [
+      { x: 0, y: 460, width: 960, height: 80, type: 'GROUND' }
+    ],
+    saltAltars: [],
+    loreNotes: [],
+    edgeTriggers: [],
+    enemySpawns: [],
+    destructibles: [],
+    npcConfigs: [
+      {
+        id: 'lorde_carmim',
+        name: 'Lorde Carmim',
+        title: 'A Tinta Primordial',
+        x: 461, // Center of 960 canvas (960/2 = 480, adjusted for width 38)
+        y: 398, // Standing on the floor (460 - 62)
+        role: 'SPIRIT',
+        autoTriggerDistance: 260,
+        dialogs: [
+          {
+            id: 'confrontation',
+            speaker: 'Lorde Carmim',
+            lines: [
+              'Lorde Carmim: "Então este é o famoso Nankin... O último traço de esperança deste mundo."',
+              'Nankin: "Vou apagar você e sua corrupção, Carmim."',
+              'Lorde Carmim: "Hahaha! Rascunho tolo. Sua tinta vai secar antes mesmo de encostar em mim. Contemple a verdadeira obra!"'
+            ],
+            choices: [
+              {
+                text: '« Sobreviva a Aventura »',
+                actionId: 'START_CLIMAX'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
   // ==========================================================================
   // SEÇÃO 1: PÁTIO DO MONASTÉRIO (Santuário de Entrada & Eremita do Sal)
   // ==========================================================================
@@ -105,9 +152,19 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
         bounds: { x: 2320, y: 0, width: 80, height: 540 },
         targetSectionId: 'corrupted_forest',
         targetPlayerX: 80,
-        targetPlayerY: 370,
+        targetPlayerY: 390,
         targetDirection: Direction.RIGHT,
         label: 'Avançar para Floresta Corrompida »',
+      },
+      {
+        id: 'trigger_to_sanctuary',
+        side: 'LEFT',
+        bounds: { x: 0, y: 0, width: 80, height: 540 },
+        targetSectionId: 'sanctuary_interior',
+        targetPlayerX: 80, // Left edge of sanctuary
+        targetPlayerY: 370,
+        targetDirection: Direction.RIGHT,
+        label: '« Adentrar o Santuário',
       },
     ],
     enemySpawns: [
@@ -115,11 +172,7 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'm_ghoul_1', type: 'GHOUL', x: 1220, y: 388, patrolMinX: 1000, patrolMaxX: 1550 },
       { id: 'm_ghost_2', type: 'GHOST', x: 1540, y: 200 },
     ],
-    destructibles: [
-      { id: 'd1', type: 'box', x: 200, y: 410 },
-      { id: 'd2', type: 'vase', x: 250, y: 412 },
-      { id: 'd3', type: 'rubble', x: 300, y: 416 },
-    ],
+    destructibles: [],
     npcConfigs: [
       {
         id: 'hermit_monk',

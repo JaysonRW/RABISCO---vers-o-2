@@ -20,6 +20,18 @@ export class PenRenderer {
     this.loadTreesSprite();
     this.loadPatioGround();
     this.loadPlatformImages();
+    this.loadLordeCarmimImg();
+  }
+
+
+  private lordeCarmimImg: HTMLImageElement | null = null;
+  private loadLordeCarmimImg() {
+    if (typeof window === 'undefined') return;
+    const img = new Image();
+    img.src = '/lord1.png';
+    img.onload = () => {
+      this.lordeCarmimImg = img;
+    };
   }
 
   private loadPlatformImages() {
@@ -1405,6 +1417,33 @@ export class PenRenderer {
     npcName: string
   ) {
     ctx.save();
+    
+    // Custom drawing for Lorde Carmim
+    if (npcName === 'Lorde Carmim') {
+      const centerX = x + w / 2;
+      const bottomY = y + h;
+      ctx.translate(centerX, bottomY);
+      
+      const breathe = Math.sin(animTime * 2) * 5; // Slight hover effect
+      
+      if (this.lordeCarmimImg) {
+        // The image is quite large, let's scale it so its height is roughly 350
+        const drawH = 350;
+        const drawW = drawH * (this.lordeCarmimImg.width / this.lordeCarmimImg.height);
+        
+        ctx.drawImage(
+          this.lordeCarmimImg, 
+          -drawW / 2, 
+          -drawH + breathe, 
+          drawW, 
+          drawH
+        );
+      }
+      
+      ctx.restore();
+      return;
+    }
+
     const centerX = x + w / 2;
     const bottomY = y + h;
     ctx.translate(centerX, bottomY);
