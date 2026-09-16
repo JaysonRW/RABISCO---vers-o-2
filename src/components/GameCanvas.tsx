@@ -282,58 +282,39 @@ export const GameCanvas: React.FC = () => {
           width={GAME_CONFIG.CANVAS_WIDTH}
           height={GAME_CONFIG.CANVAS_HEIGHT}
           className="w-full h-full object-contain block"
+          onMouseDown={(e) => {
+            if (e.button === 0 && engineRef.current) {
+              engineRef.current.input.attack = true;
+            }
+          }}
+          onMouseUp={(e) => {
+            if (e.button === 0 && engineRef.current) {
+              engineRef.current.input.attack = false;
+            }
+          }}
+          onMouseLeave={() => {
+            if (engineRef.current) {
+              engineRef.current.input.attack = false;
+            }
+          }}
         />
 
         {/* HUD - Floating over the canvas */}
-        <div className="absolute top-0 left-0 w-full p-4 flex justify-between pointer-events-none">
-          {/* Top Left: HP and Stamina */}
-          <div className="flex flex-col gap-2 w-48 sm:w-64">
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-xs font-bold text-[#C81E1E] drop-shadow-md">
-                <span>VIDA</span>
-                <span>{Math.round(stats.hp)} / {stats.maxHp}</span>
-              </div>
-              <div className="w-full h-3 bg-black/60 border border-white/20 rounded-sm overflow-hidden">
-                <div
-                  className="h-full bg-[#C81E1E] transition-all duration-150"
-                  style={{ width: `${Math.max(0, (stats.hp / stats.maxHp) * 100)}%` }}
-                />
-              </div>
-            </div>
-            
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-[10px] font-bold text-[#38BDF8] drop-shadow-md">
-                <span>ESTAMINA</span>
-                <span>{Math.round(stats.stamina)}%</span>
-              </div>
-              <div className="w-full h-2 bg-black/60 border border-white/20 rounded-sm overflow-hidden">
-                <div
-                  className="h-full bg-[#38BDF8] transition-all duration-150"
-                  style={{ width: `${Math.max(0, (stats.stamina / stats.maxStamina) * 100)}%` }}
-                />
-              </div>
-            </div>
+        <div className="absolute top-0 right-0 p-4 flex gap-3 pointer-events-none items-start">
+          {/* Top Right: Souls and Sound */}
+          <div className="flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded border border-white/10 backdrop-blur-sm pointer-events-auto h-9">
+            <span className="text-[#06B6D4]">✧</span>
+            <span className="text-xl font-bold font-['Cinzel'] text-[#FFFFFF] drop-shadow-md leading-none">
+              {stats.ascension.souls}
+            </span>
           </div>
-
-          {/* Top Right: Souls and Location */}
-          <div className="flex flex-col items-end gap-2 text-right">
-            <div className="flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded border border-white/10 backdrop-blur-sm pointer-events-auto">
-              <span className="text-[#06B6D4]">✧</span>
-              <span className="text-xl font-bold font-['Cinzel'] text-[#FFFFFF] drop-shadow-md">
-                {stats.ascension.souls}
-              </span>
-            </div>
-            <div className="text-xs font-serif text-[#FFFFFF]/80 drop-shadow-md mt-1">
-              {stats.currentSection?.name || 'Santuário'}
-            </div>
-            {/* Quick Actions (Sound) */}
-            <button
-              onClick={handleToggleSound}
-              className="mt-2 p-1.5 bg-black/50 hover:bg-black/80 rounded border border-white/10 text-white pointer-events-auto transition-colors"
-            >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-[#C81E1E]" />}
-            </button>
-          </div>
+          {/* Quick Actions (Sound) */}
+          <button
+            onClick={handleToggleSound}
+            className="p-1.5 bg-black/50 hover:bg-black/80 rounded border border-white/10 text-white pointer-events-auto transition-colors h-9 flex items-center justify-center"
+          >
+            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5 text-[#C81E1E]" />}
+          </button>
         </div>
 
         {/* Buffs Display */}

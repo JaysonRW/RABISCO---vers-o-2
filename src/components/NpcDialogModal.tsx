@@ -41,29 +41,34 @@ export const NpcDialogModal: React.FC<NpcDialogModalProps> = ({
 
   const isLordSpeaking = speaker === 'Lorde Carmim' || speaker === 'Senhor Carmim';
   let avatarSrc = '/npc_avatar.png';
-  if (speaker === 'Nankin' || speaker === 'Cavaleiro') avatarSrc = '/hero_avatar.png';
-  else if (speaker === 'Lorde Carmim') avatarSrc = '/lord_avatar.png';
+  if (speaker === 'Nankin' || speaker === 'Cavaleiro') {
+    avatarSrc = '/Heroi1.png';
+  } else if (speaker === 'Lorde Carmim' || speaker === 'Senhor Carmim') {
+    if (fullText.includes("Rascunho tolo")) {
+      avatarSrc = '/lordgarisos.png';
+    } else {
+      avatarSrc = '/lordFala1.png';
+    }
+  }
 
   // Efeito de digitação (Typewriter)
   useEffect(() => {
     setDisplayedText('');
-    let i = 0;
+    let currentLength = 0;
+    
     const interval = setInterval(() => {
-      setDisplayedText(prev => {
-        if (prev.length >= fullText.length) {
-          clearInterval(interval);
-          return prev;
-        }
-        if (i < fullText.length) {
-          const next = prev + fullText.charAt(i);
-          i++;
-          if (i % 4 === 0) soundManager.playNpcDialog();
-          return next;
-        }
+      currentLength++;
+      setDisplayedText(fullText.substring(0, currentLength));
+      
+      if (currentLength % 4 === 0) {
+        soundManager.playNpcDialog();
+      }
+      
+      if (currentLength >= fullText.length) {
         clearInterval(interval);
-        return prev;
-      });
+      }
     }, 25);
+    
     return () => clearInterval(interval);
   }, [fullText]);
 
@@ -107,17 +112,11 @@ export const NpcDialogModal: React.FC<NpcDialogModalProps> = ({
         {/* Retrato do Personagem */}
         <div className={`w-[160px] min-w-[160px] h-full ${isLordSpeaking ? "border-l-2" : "border-r-2"} border-stone-400 bg-stone-900 flex items-center justify-center p-1 shrink-0 overflow-hidden relative`}>
           {/* Fallback caso a imagem não exista (ou não carregue) */}
-          <div className="absolute inset-0 flex items-center justify-center text-stone-600 text-xs text-center p-2">
-            (Adicione {avatarSrc} em /public)
-          </div>
           <img 
+            key={avatarSrc}
             src={avatarSrc} 
             alt={speaker} 
             className="relative z-10 w-full h-full object-cover object-top"
-            onError={(e) => {
-              // Se a imagem falhar ao carregar, apenas a esconde para mostrar o fallback
-              e.currentTarget.style.display = 'none';
-            }}
           />
         </div>
 

@@ -1424,8 +1424,8 @@ export class GameEngine {
 
     ctx.restore();
 
-    // 8. Barra de Progresso de Ascensão no Topo da Tela (Coordenadas de Tela)
-    this.renderer.renderInGameAscensionBar(ctx, this.getAscensionStats(), this.player.animTime);
+    // 8. HUD Completo (Vida, Estamina, Ascensão)
+    this.renderer.renderPlayerHUD(ctx, this.player.hp, this.player.maxHp, this.player.stamina, this.player.maxStamina, this.getAscensionStats(), this.player.animTime);
 
     // 8a. Banner Ilustrado da Seção (Ao entrar em nova área)
     this.renderer.renderSectionTitleBanner(
