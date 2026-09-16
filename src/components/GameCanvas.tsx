@@ -10,6 +10,7 @@ import { AscensionStats, PlayerState } from '../game/types';
 import { soundManager } from '../game/audio/synth';
 import { NPC, DialogChoice } from '../game/entities/NPC';
 import { GameIntro } from './GameIntro';
+import { StatusScreen } from './StatusScreen';
 import { NpcDialogModal } from './NpcDialogModal';
 import {
   Shield,
@@ -72,6 +73,7 @@ export const GameCanvas: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showGddGuide, setShowGddGuide] = useState(false);
   const [showRespawnBanner, setShowRespawnBanner] = useState(false);
+  const [showStatusScreen, setShowStatusScreen] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [isClimaxTransitioning, setIsClimaxTransitioning] = useState(false);
 
@@ -95,6 +97,11 @@ export const GameCanvas: React.FC = () => {
 
     // Eventos de Teclado
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        setShowStatusScreen(prev => !prev);
+        return;
+      }
       // Evita rolagem da página com Espaço e Setas
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
@@ -109,6 +116,10 @@ export const GameCanvas: React.FC = () => {
         case 'KeyD':
         case 'ArrowRight':
           input.right = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          input.down = true;
           break;
         case 'KeyW':
         case 'ArrowUp':
@@ -150,6 +161,10 @@ export const GameCanvas: React.FC = () => {
         case 'KeyD':
         case 'ArrowRight':
           input.right = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          input.down = false;
           break;
         case 'KeyW':
         case 'ArrowUp':
@@ -272,6 +287,21 @@ export const GameCanvas: React.FC = () => {
 
   return (
     <div className="w-screen h-screen bg-black flex flex-col items-center justify-center select-none overflow-hidden relative">
+      {showStatusScreen && stats && (
+        <StatusScreen 
+          stats={{
+            hp: stats.hp,
+            maxHp: stats.maxHp,
+            stamina: stats.stamina,
+            maxStamina: stats.maxStamina,
+            mp: stats.mp,
+            maxMp: stats.maxMp,
+            ascension: stats.ascension,
+            saltCount: engineRef.current?.inventory.saltCount || 0
+          }} 
+          onClose={() => setShowStatusScreen(false)} 
+        />
+      )}
       
       {/* Game Area Wrapper (keeps 16:9 aspect ratio) */}
       <div className="relative w-full h-full max-w-[1920px] aspect-video sm:aspect-auto sm:max-h-screen flex items-center justify-center bg-[#051442]">

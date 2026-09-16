@@ -138,3 +138,16 @@ export interface AscensionStats {
   bonusText: string;
   damageMultiplier: number;
 }
+
+export interface Collectible {
+  id: number;
+  type: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  width: number;
+  height: number;
+  isCollected: boolean;
+  life: number;
+}

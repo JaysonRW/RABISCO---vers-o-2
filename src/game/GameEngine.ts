@@ -5,6 +5,7 @@
 
 import { GAME_CONFIG } from './config';
 import { Player } from './entities/Player';
+import { Fireball } from './entities/Fireball';
 import { Enemy } from './entities/Enemy';
 import { GhostEnemy } from './entities/GhostEnemy';
 import { GhoulEnemy } from './entities/GhoulEnemy';
@@ -13,7 +14,7 @@ import { Destructible } from './entities/Destructible';
 import { Level } from './world/Level';
 import { PenRenderer } from './rendering/PenRenderer';
 import { InventoryManager } from './inventory/InventoryManager';
-import { AscensionStats, DamageInfo, DamageType, EnemyType, FloatingText, Particle, PlayerState, Rect, SoulOrb } from './types';
+import { AscensionStats, DamageInfo, DamageType, EnemyType, FloatingText, Particle, PlayerState, Rect, SoulOrb , Collectible } from './types';
 import { soundManager } from './audio/synth';
 import { SectionManager } from './world/SectionManager';
 import { SectionData, SECTIONS_DATA } from './world/Section';
@@ -48,6 +49,7 @@ export class GameEngine {
   public enemies: Enemy[] = [];
   public npcs: NPC[] = [];
   public destructibles: Destructible[] = [];
+  public collectibles: Collectible[] = [];
   public activeNpcNearby: NPC | null = null;
   public level: Level;
   public inventory: InventoryManager;
@@ -71,6 +73,8 @@ export class GameEngine {
 
   // Sistemas de Efeitos Visuais
   public particles: Particle[] = [];
+  public aoePuddles: {x: number, y: number, radius: number, maxRadius: number, life: number, maxLife: number}[] = [];
+  public fireballs: Fireball[] = [];
   public floatingTexts: FloatingText[] = [];
   private nextTextId: number = 1;
 
@@ -78,6 +82,7 @@ export class GameEngine {
   public input = {
     left: false,
     right: false,
+    down: false,
     jump: false,
     dash: false,
     attack: false,
@@ -107,7 +112,8 @@ export class GameEngine {
     this.inventory = new InventoryManager();
 
     // Inicializa Gerenciador de Seções do Mapa (Pátio do Mosteiro como ponto inicial)
-    this.sectionManager = new SectionManager('sanctuary_interior');
+    const initialScenario = typeof window !== 'undefined' ? (localStorage.getItem('selected_initial_scenario') || 'sanctuary_interior') : 'sanctuary_interior';
+    this.sectionManager = new SectionManager(initialScenario);
     this.level = new Level(this.sectionManager.currentSection);
 
     // Inicia Jogador
@@ -211,7 +217,8 @@ export class GameEngine {
   }
 
   public resetGame() {
-    this.sectionManager = new SectionManager('sanctuary_interior');
+    const initialScenario = typeof window !== 'undefined' ? (localStorage.getItem('selected_initial_scenario') || 'sanctuary_interior') : 'sanctuary_interior';
+    this.sectionManager = new SectionManager(initialScenario);
     this.setupSectionTransitions();
     this.player = new Player(80, 390);
     this.inventory = new InventoryManager();
@@ -488,7 +495,7 @@ export class GameEngine {
     // Lock inputs if playing a cutscene
     let activeInput = this.input;
     if (this.isCutscenePlaying) {
-      activeInput = { left: false, right: false, jump: false, dash: false, attack: false, interact: false, useSalt: false };
+      activeInput = { left: false, right: false, down: false, jump: false, dash: false, attack: false, interact: false, useSalt: false };
       if (this.isAutoWalkingToBoss) {
         activeInput.right = true; // Força andar para a direita
       }
@@ -501,6 +508,199 @@ export class GameEngine {
       this.inventory.hasSaltCoating,
       () => this.triggerUseSalt()
     );
+
+    // Checa se o jogador soltou a magia (Fireball)
+    if (this.player.spellCastRequested) {
+      this.player.spellCastRequested = false;
+      
+      const baseMpCost = 25;
+      const mpCost = Math.round(baseMpCost * (1 + (this.ascensionLevel * 0.2)));
+      
+      if (this.player.mp >= mpCost) {
+        this.player.mp -= mpCost;
+        
+        // Spawn Fireball
+        const baseDamage = 30;
+        const damage = Math.round(baseDamage * (1 + (this.ascensionLevel * 0.5)));
+        
+        const fbX = this.player.facing === 1 ? this.player.x + this.player.width : this.player.x;
+        const fbY = this.player.y + this.player.height / 2;
+        
+        this.fireballs.push(new Fireball(fbX, fbY, this.player.facing, damage));
+        
+        // Trigger attack animation
+        this.player.state = 'ATTACK' as any;
+        this.player.attackTimer = 0.3; // force animation
+      }
+    }
+
+    // Checa se o jogador soltou a magia (Cura)
+    if (this.player.healCastRequested) {
+      this.player.healCastRequested = false;
+      
+      const baseMpCost = 30;
+      const mpCost = Math.round(baseMpCost * (1 + (this.ascensionLevel * 0.2)));
+      
+      if (this.player.mp >= mpCost && this.player.hp < this.player.maxHp) {
+        this.player.mp -= mpCost;
+        
+        const baseHeal = 25;
+        const healAmount = Math.round(baseHeal * (1 + (this.ascensionLevel * 0.5)));
+        
+        const previousHp = this.player.hp;
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmount);
+        const actualHeal = this.player.hp - previousHp;
+        this.player.healingAuraTimer = 0.8; // Dura 0.8s
+        
+        if (actualHeal > 0) {
+            // Trigger floating text
+            const pX = this.player.x + this.player.width / 2;
+            const pY = this.player.y;
+            this.addFloatingText(pX, pY, `+${actualHeal} VIDA`, '#10B981', 1.2);
+            
+            // Trigger green aura particles
+            for(let p=0; p<20; p++) {
+              this.particles.push({
+                x: pX + (Math.random() - 0.5) * 40, 
+                y: pY + this.player.height + (Math.random() - 0.5) * 20,
+                vx: (Math.random() - 0.5) * 50,
+                vy: -Math.random() * 100 - 50,
+                color: Math.random() > 0.5 ? '#10B981' : '#34D399',
+                size: Math.random() * 6 + 3,
+                life: 0,
+                maxLife: 0.5 + Math.random() * 0.5,
+                alpha: 1,
+                shape: 'spark'
+              });
+            }
+        }
+      }
+    }
+
+
+    // Checa se o jogador soltou a magia (Borrão Explosivo)
+    if (this.player.aoeCastRequested) {
+      this.player.aoeCastRequested = false;
+      
+      const baseMpCost = 40;
+      const mpCost = Math.round(baseMpCost * (1 + (this.ascensionLevel * 0.2)));
+      
+      if (this.player.mp >= mpCost) {
+        this.player.mp -= mpCost;
+        
+        const baseDamage = 45;
+        const damage = Math.round(baseDamage * (1 + (this.ascensionLevel * 0.5)));
+        
+        // Causa dano em área
+        const pX = this.player.x + this.player.width / 2;
+        const pY = this.player.y + this.player.height;
+        const explosionRadius = 180;
+        
+        // Cria a poça de tinta no chão
+        this.aoePuddles.push({
+          x: pX,
+          y: pY,
+          radius: 0,
+          maxRadius: explosionRadius,
+          life: 0,
+          maxLife: 1.5 // Dura 1.5 segundos na tela
+        });
+        
+        // Trigger attack animation
+        this.player.state = 'ATTACK' as any;
+        this.player.attackTimer = 0.4;
+        
+        if (typeof (window as any).soundManager !== 'undefined') {
+            // Se possivel, toque um som
+        }
+        
+        // Explosão de Nankin Particles
+        for(let p=0; p<40; p++) {
+          this.particles.push({
+            x: pX + (Math.random() - 0.5) * 60, 
+            y: pY - 10,
+            vx: (Math.random() - 0.5) * 450,
+            vy: -Math.random() * 300 - 100,
+            color: Math.random() > 0.5 ? '#0A2570' : '#051442',
+            size: Math.random() * 14 + 6,
+            life: 0,
+            maxLife: 0.6 + Math.random() * 0.6,
+            alpha: 1,
+            shape: 'ink_splatter',
+            gravity: 900
+          });
+        }
+        
+        // Bate em inimigos próximos
+        for (const enemy of this.enemies) {
+            if (!enemy.isDefeated) {
+                const eX = enemy.x + enemy.width / 2;
+                const eY = enemy.y + enemy.height / 2;
+                const dist = Math.sqrt(Math.pow(eX - pX, 2) + Math.pow(eY - pY, 2));
+                
+                if (dist <= explosionRadius) {
+                    const knockDirX = eX > pX ? 1 : -1;
+                    enemy.takeDamage({
+                      amount: damage,
+                      type: 'PHYSICAL' as any,
+                      knockback: { x: knockDirX * 350, y: -200 },
+                      sourcePosition: { x: pX, y: pY }
+                    });
+                    this.addFloatingText(eX, eY, damage.toString(), '#8B5CF6', 1.5);
+                }
+            }
+        }
+      }
+    }
+
+    // Atualiza Fireballs
+    for (let i = this.fireballs.length - 1; i >= 0; i--) {
+      const fb = this.fireballs[i];
+      fb.update(dt);
+      
+      // Checa colisão com inimigos
+      const fbBounds = fb.getBounds();
+      let hit = false;
+      
+      for (const enemy of this.enemies) {
+        if (!enemy.isDefeated) {
+          const eBounds = enemy.getBounds();
+          if (this.checkOverlap(fbBounds, eBounds)) {
+            hit = true;
+            // Causar dano de fogo
+            enemy.takeDamage({
+              amount: fb.damage,
+              type: 'FIRE' as any,
+              knockback: { x: fb.facing * 150, y: -100 },
+              sourcePosition: { x: fb.x, y: fb.y }
+            });
+            this.addFloatingText(fb.x, fb.y, fb.damage.toString(), '#FF5500', 1.5);
+            
+            // Explosão de fogo
+            for(let p=0; p<15; p++) {
+              this.particles.push({
+                x: fb.x, y: fb.y,
+                vx: (Math.random() - 0.5) * 200,
+                vy: (Math.random() - 0.5) * 200,
+                color: Math.random() > 0.5 ? '#FF4400' : '#FFDD00',
+                size: Math.random() * 8 + 4,
+                life: 0,
+                maxLife: 0.3 + Math.random() * 0.3,
+                alpha: 1,
+                shape: 'spark'
+              });
+            }
+            break;
+          }
+        }
+      }
+      
+      // Se saiu da tela ou bateu, remove
+      if (hit || fb.x < this.cameraX - 100 || fb.x > this.cameraX + 1920 + 100) {
+        this.fireballs.splice(i, 1);
+      }
+    }
+
 
     // 2a. Atualiza NPCs e detecta proximidade para interação [E]
     const pCenterX = this.player.x + this.player.width / 2;
@@ -721,6 +921,65 @@ export class GameEngine {
       p.alpha = Math.max(0, p.life / p.maxLife);
     }
 
+    // Atualiza Destructibles
+    for (const dest of this.destructibles) {
+      if (typeof (dest as any).update === 'function') {
+        (dest as any).update(dt);
+      }
+    }
+
+    // Atualiza Poças de AoE
+    for (let i = this.aoePuddles.length - 1; i >= 0; i--) {
+      const p = this.aoePuddles[i];
+      p.life += dt;
+      // Expansão rápida
+      if (p.radius < p.maxRadius) {
+         p.radius += (p.maxRadius - p.radius) * 10 * dt + 50 * dt;
+         if (p.radius > p.maxRadius) p.radius = p.maxRadius;
+      }
+      if (p.life >= p.maxLife) {
+        this.aoePuddles.splice(i, 1);
+      }
+    }
+
+    // Atualiza Collectibles
+    for (const item of this.collectibles) {
+      if (item.isCollected) continue;
+      
+      item.vy += 800 * dt; // gravidade
+      item.x += item.vx * dt;
+      item.y += item.vy * dt;
+      item.life += dt;
+
+      // Chão simples 
+      if (item.y > 425) { 
+          item.y = 425;
+          item.vy = 0;
+          item.vx = 0;
+      }
+
+      // Checa colisão entre o Nankin e o Item
+      const iBounds = {x: item.x, y: item.y, width: item.width, height: item.height};
+      if (this.checkOverlap(this.player.getBounds(), iBounds)) {
+          item.isCollected = true;
+          
+          if (item.type === 'heart') {
+              const heal = 25;
+              this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
+              this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+25 HP", "#10B981");
+              this.player.healingAuraTimer = 0.5;
+          } else if (item.type === 'purifying_salt') {
+              this.inventory.addItem({ id: item.type, name: 'Sal Purificador', description: 'Básico', type: 'COATING', icon: 'salt', count: 1 });
+              this.inventory.addSalt(1);
+              this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+1 Sal", "#3B82F6");
+          } else if (item.type === 'holy_water') {
+              this.inventory.addItem({ id: item.type, name: 'Água Benta', description: 'Básico', type: 'CONSUMABLE', icon: 'flask', count: 1 });
+              this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+1 Água Benta", "#3B82F6");
+          }
+      }
+    }
+    this.collectibles = this.collectibles.filter(c => !c.isCollected && c.life < 15);
+
     // 6. Atualiza Textos Flutuantes
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
@@ -766,40 +1025,92 @@ export class GameEngine {
   }
 
   // Verifica colisão da espada do jogador com os inimigos
+
   private handleCombatHits() {
     const attackHitbox = this.player.getAttackHitbox();
     if (!attackHitbox || this.player.hasHitCurrentAttack) return;
 
+    let hitSomething = false;
+
+    // Check Enemies
     for (const enemy of this.enemies) {
       if (!enemy.isAlive) continue;
 
       const eBounds = enemy.getBounds();
       if (this.checkOverlap(attackHitbox, eBounds)) {
-        this.player.hasHitCurrentAttack = true; // garante apenas 1 golpe por animação
+        hitSomething = true;
+        this.player.hasHitCurrentAttack = true; 
 
-        // Ponto central de contato do corte no plano 2D
         const hitX = Math.max(attackHitbox.x, Math.min(attackHitbox.x + attackHitbox.width, enemy.x + enemy.width / 2));
         const hitY = Math.max(attackHitbox.y, Math.min(attackHitbox.y + attackHitbox.height, enemy.y + enemy.height / 2));
         const slashDirX = this.player.facing;
         const slashDirY = this.player.isSpinJumping ? -0.4 : -0.15;
 
-        // Se acertou golpe durante o Pulo com Giro 360°, concede impulso acrobático para cima
         if (this.player.isSpinJumping) {
           this.player.vy = Math.min(this.player.vy, -260);
         }
 
-        // Determina o tipo de dano ativo na espada do jogador
         const activeDamageType = this.inventory.getActiveDamageType();
-        const isSaltActive = activeDamageType === DamageType.SALT;
+        const isSaltActive = activeDamageType === 'SALT';
+        const damageMultiplier = this.getCurrentAscensionInfo().damageMult;
+        const calculatedDamage = Math.round(GAME_CONFIG.PLAYER.ATTACK_DAMAGE * damageMultiplier);
 
-        
+        const damageInfo = {
+          amount: calculatedDamage,
+          type: activeDamageType,
+          knockback: { x: this.player.facing * 180, y: -180 },
+          sourcePosition: { x: this.player.x, y: this.player.y }
+        };
+
+        const dmgResult = enemy.takeDamage(damageInfo as any);
+
+        if (dmgResult.isImmune) {
+          if ((soundManager as any).playImmuneClank) (soundManager as any).playImmuneClank();
+          this.addFloatingText(hitX, hitY - 20, "IMUNE", '#9CA3AF');
+        } else if (dmgResult.isWeakness) {
+          if ((soundManager as any).playGhostHurt) (soundManager as any).playGhostHurt();
+          this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FBBF24', 1.5);
+        } else {
+          if ((soundManager as any).playHitImpact) (soundManager as any).playHitImpact();
+          this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FFFFFF', 1.0);
+        }
+
+        if (isSaltActive) {
+           this.inventory.useSalt();
+           for(let p=0; p<8; p++) {
+             this.particles.push({
+               x: hitX + (Math.random()-0.5)*20, y: hitY + (Math.random()-0.5)*20,
+               vx: slashDirX * (300 + Math.random()*200) + (Math.random()-0.5)*100,
+               vy: slashDirY * 300 + (Math.random()-0.5)*100,
+               color: '#FFFFFF', size: Math.random() * 3 + 2,
+               life: 0, maxLife: 0.3 + Math.random()*0.2, alpha: 1, shape: 'spark'
+             });
+           }
+        } else {
+           for(let p=0; p<12; p++) {
+             this.particles.push({
+               x: hitX, y: hitY,
+               vx: slashDirX * (200 + Math.random()*300) + (Math.random()-0.5)*150,
+               vy: slashDirY * 300 + (Math.random()-0.5)*150,
+               color: GAME_CONFIG.PALETTE.PEN_PRIMARY, size: Math.random() * 4 + 1,
+               life: 0, maxLife: 0.3 + Math.random()*0.3, alpha: 1, shape: 'ink_slash'
+             });
+           }
+        }
+        this.triggerScreenShake(0.08, 4);
+        break; 
+      }
+    }
+
+    if (hitSomething) return; 
+
     // Check Destructibles
     for (const dest of this.destructibles) {
-      if (dest.isDestroyed) continue;
+      if (dest.isDestroyed || (dest as any).isDestroying) continue;
       const dBounds = dest.getBounds();
       if (this.checkOverlap(attackHitbox, dBounds)) {
-        this.player.hasHitCurrentAttack = true; // garante apenas 1 golpe
-        
+        this.player.hasHitCurrentAttack = true;
+
         const activeDamageType = this.inventory.getActiveDamageType();
         const damageInfo = {
           amount: GAME_CONFIG.PLAYER.ATTACK_DAMAGE,
@@ -807,519 +1118,44 @@ export class GameEngine {
           knockback: { x: this.player.facing * 50, y: -50 },
           sourcePosition: { x: this.player.x, y: this.player.y }
         };
-        
-        dest.takeDamage(damageInfo, this.inventory, (newParticles) => {
+
+        dest.takeDamage(damageInfo as any, (type, x, y) => {
+          this.collectibles.push({
+            id: Math.random(),
+            type, x, y, vx: (Math.random() - 0.5) * 120, vy: -150 - Math.random() * 100,
+            width: 16, height: 16, isCollected: false, life: 0
+          });
+        }, (newParticles) => {
           this.particles.push(...newParticles);
         }, (x, y, text, color) => {
           this.addFloatingText(x, y, text, color);
         });
-        
 
-        
-        soundManager.playSwordHit(); // Assuming this exists
+        if ((soundManager as any).playHitImpact) (soundManager as any).playHitImpact();
         this.triggerScreenShake(0.05, 3);
         
-        // Break after hitting one thing (or keep checking? Usually one hit per frame check)
         break;
       }
     }
-
-        // Bônus de Ascensão multiplica o poder do corte
-        const damageMultiplier = this.getCurrentAscensionInfo().damageMult;
-        const calculatedDamage = Math.round(GAME_CONFIG.PLAYER.ATTACK_DAMAGE * damageMultiplier);
-
-        const damageInfo: DamageInfo = {
-          amount: calculatedDamage,
-          type: activeDamageType,
-          knockback: {
-            x: this.player.facing * 180,
-            y: -120,
-          },
-          sourcePosition: { x: this.player.x, y: this.player.y },
-        };
-
-        const result = enemy.takeDamage(damageInfo);
-
-        // Feedback Visual & Sonoro dependendo de Fraqueza vs Imunidade vs Dano Comum
-        if (result.isImmune) {
-          // Inimigo Imune ao aço comum!
-          soundManager.playImmuneClank();
-          this.triggerScreenShake(0.08, 2);
-
-          this.addFloatingText(
-            enemy.x + enemy.width / 2,
-            enemy.y - 12,
-            'IMUNE AO AÇO!',
-            GAME_CONFIG.PALETTE.PEN_PRIMARY,
-            1.2
-          );
-
-          // Faíscas azuis fracas e pequenos arranhões de lâmina repelida
-          for (let i = 0; i < 7; i++) {
-            this.addParticle({
-              x: hitX,
-              y: hitY,
-              vx: (Math.random() - 0.5) * 110 - slashDirX * 35,
-              vy: (Math.random() - 0.5) * 110 - 25,
-              color: GAME_CONFIG.PALETTE.PEN_LIGHT,
-              size: 2,
-              life: 0.3,
-              maxLife: 0.3,
-              alpha: 0.85,
-              shape: 'spark',
-            });
-          }
-        } else if (result.isWeakness) {
-          // FRAQUEZA CRÍTICA! (Ex: Sal Purificador contra Espectro ou Lâmina contra Carniçal)
-          soundManager.playGhostHurt();
-          this.triggerScreenShake(0.22, 7);
-
-          const weaknessLabel = isSaltActive ? 'EXORCIZADO!' : 'GOLPE CRÍTICO!';
-          this.addFloatingText(
-            enemy.x + enemy.width / 2,
-            enemy.y - 18,
-            `${weaknessLabel} -${result.dealt}`,
-            isSaltActive ? GAME_CONFIG.PALETTE.FX_HOLY_GOLD : GAME_CONFIG.PALETTE.PEN_PRIMARY,
-            1.4
-          );
-
-          // Efeito sagrado de sal caso a arma esteja imbuída
-          if (isSaltActive) {
-            for (let i = 0; i < 18; i++) {
-              this.addParticle({
-                x: hitX,
-                y: hitY,
-                vx: (Math.random() - 0.5) * 220,
-                vy: -Math.random() * 160 - 30,
-                color: i % 2 === 0 ? GAME_CONFIG.PALETTE.FX_HOLY_GOLD : GAME_CONFIG.PALETTE.FX_HOLY_WHITE,
-                size: 3 + Math.random() * 3,
-                life: 0.6 + Math.random() * 0.4,
-                maxLife: 1.0,
-                alpha: 1,
-                gravity: 120,
-                shape: i % 3 === 0 ? 'cross' : 'spark',
-              });
-            }
-          }
-
-          // Sistema de partículas de tinta esferográfica azul representando o impacto cortante
-          this.spawnAttackInkImpact(hitX, hitY, slashDirX, slashDirY, true, this.player.isSpinJumping);
-
-          if (result.defeated) {
-            const defeatedLabel = enemy.type === EnemyType.GHOST
-              ? 'ESPECTRO BANIDO!'
-              : enemy.type === EnemyType.ZOMBIE
-              ? 'CARNIÇAL DESTRUÍDO!'
-              : 'INIMIGO DERROTADO!';
-
-            this.addFloatingText(
-              enemy.x + enemy.width / 2,
-              enemy.y - 32,
-              defeatedLabel,
-              isSaltActive ? GAME_CONFIG.PALETTE.FX_HOLY_WHITE : GAME_CONFIG.PALETTE.PEN_PRIMARY,
-              1.5
-            );
-
-            // Explosão dramática de tinta esferográfica azul ao destruir o monstro
-            this.spawnEnemyDefeatedInkBurst(enemy, slashDirX, slashDirY);
-
-            // Spawna Almas ao Derrotar o Inimigo!
-            this.spawnSoulsFromEnemy(enemy);
-
-            // Enfileira retorno para caça contínua
-            this.queueEnemyRespawn(enemy);
-          }
-        } else if (result.dealt > 0) {
-          // GOLPE NORMAL BEM-SUCEDIDO (Dano de aço ou físico comum)
-          soundManager.playHitImpact();
-          this.triggerScreenShake(0.14, 4);
-
-          this.addFloatingText(
-            enemy.x + enemy.width / 2,
-            enemy.y - 14,
-            `-${result.dealt}`,
-            GAME_CONFIG.PALETTE.PEN_PRIMARY,
-            1.2
-          );
-
-          // Sistema de partículas de tinta esferográfica azul representando o impacto do ataque
-          this.spawnAttackInkImpact(hitX, hitY, slashDirX, slashDirY, false, this.player.isSpinJumping);
-
-          if (result.defeated) {
-            const defeatedLabel = enemy.type === EnemyType.GHOST
-              ? 'ESPECTRO BANIDO!'
-              : enemy.type === EnemyType.ZOMBIE
-              ? 'CARNIÇAL DESTRUÍDO!'
-              : 'INIMIGO DERROTADO!';
-
-            this.addFloatingText(
-              enemy.x + enemy.width / 2,
-              enemy.y - 32,
-              defeatedLabel,
-              GAME_CONFIG.PALETTE.PEN_PRIMARY,
-              1.5
-            );
-
-            // Explosão dramática de tinta esferográfica azul ao aniquilar o inimigo
-            this.spawnEnemyDefeatedInkBurst(enemy, slashDirX, slashDirY);
-
-            // Spawna Almas ao Derrotar o Inimigo!
-            this.spawnSoulsFromEnemy(enemy);
-
-            // Enfileira retorno para caça contínua
-            this.queueEnemyRespawn(enemy);
-          }
-        }
-      }
-    }
   }
 
-  /**
-   * Sistema de Partículas em Estilo Caneta Esferográfica Azul
-   * Simula o impacto cortante da lâmina na textura de pergaminho:
-   * respingos de tinta líquida, gotas cinéticas alongadas e riscos vigorosos de caneta.
-   */
-  public spawnAttackInkImpact(
-    x: number,
-    y: number,
-    dirX: number,
-    dirY: number,
-    isWeakness: boolean = false,
-    isSpinJump: boolean = false
-  ) {
-    const penDark = GAME_CONFIG.PALETTE.PEN_PRIMARY;       // #0A2570
-    const penMid = GAME_CONFIG.PALETTE.PEN_SECONDARY;      // #143D99
-    const penLight = GAME_CONFIG.PALETTE.PEN_LIGHT;        // #255AC4
-    const penDeep = GAME_CONFIG.PALETTE.PEN_DARKEST;       // #051442
 
-    const inkPalette = [penDeep, penDark, penMid, penLight];
-
-    // Quantidade calibrada para impacto responsivo e denso
-    const dropletCount = isSpinJump ? 22 : (isWeakness ? 16 : 11);
-    const splatterCount = isSpinJump ? 8 : (isWeakness ? 6 : 4);
-    const scratchCount = isSpinJump ? 4 : (isWeakness ? 3 : 2);
-
-    const baseAngle = Math.atan2(dirY, dirX);
-
-    // 1. Gotas cinéticas alongadas de tinta esferográfica azul (spray de corte)
-    for (let i = 0; i < dropletCount; i++) {
-      let angle: number;
-      if (isSpinJump) {
-        // No mortal 360°, a tinta espirra em leque radial completo
-        angle = (i / dropletCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-      } else {
-        // No corte frontal, spray cônico na direção do golpe
-        angle = baseAngle + (Math.random() - 0.5) * 1.35;
-      }
-
-      const speed = 140 + Math.random() * (isWeakness ? 280 : 210);
-      const color = inkPalette[Math.floor(Math.random() * inkPalette.length)];
-      const size = 1.8 + Math.random() * (isWeakness ? 2.4 : 1.8);
-
-      this.addParticle({
-        x: x + (Math.random() - 0.5) * 8,
-        y: y + (Math.random() - 0.5) * 8,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 25,
-        color,
-        size,
-        life: 0.35 + Math.random() * 0.3,
-        maxLife: 0.65,
+  private spawnPlayerDamageInkParticles(x: number, y: number, dirX: number) {
+    for (let i = 0; i < 15; i++) {
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + (Math.random() - 0.5) * 20,
+        vx: dirX * (100 + Math.random() * 200) + (Math.random() - 0.5) * 50,
+        vy: -150 - Math.random() * 200,
+        color: GAME_CONFIG.PALETTE.PEN_PRIMARY,
+        size: Math.random() * 3 + 1,
+        life: 0,
+        maxLife: 0.4 + Math.random() * 0.4,
         alpha: 1,
-        gravity: 360 + Math.random() * 120,
-        drag: 0.75, // desaceleração natural da tinta fluida
-        shape: 'ink_droplet',
+        shape: 'ink_slash',
+        gravity: 800
       });
     }
-
-    // 2. Manchas orgânicas de tinta (ink splatter) com micro-gotículas satélites
-    for (let i = 0; i < splatterCount; i++) {
-      const angle = isSpinJump
-        ? Math.random() * Math.PI * 2
-        : baseAngle + (Math.random() - 0.5) * 1.6;
-
-      const speed = 60 + Math.random() * 140;
-      const color = inkPalette[Math.floor(Math.random() * 2)]; // tons mais profundos para as manchas
-      const size = 2.8 + Math.random() * (isWeakness ? 3.2 : 2.2);
-
-      // Gera 2 a 4 micro-satélites ao redor do impacto
-      const satCount = 2 + Math.floor(Math.random() * 3);
-      const satellites: { dx: number; dy: number; r: number }[] = [];
-      for (let s = 0; s < satCount; s++) {
-        const satAng = Math.random() * Math.PI * 2;
-        const satDist = size * (1.2 + Math.random() * 1.5);
-        satellites.push({
-          dx: Math.cos(satAng) * satDist,
-          dy: Math.sin(satAng) * satDist,
-          r: 0.6 + Math.random() * 0.9,
-        });
-      }
-
-      this.addParticle({
-        x: x + (Math.random() - 0.5) * 12,
-        y: y + (Math.random() - 0.5) * 12,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 15,
-        color,
-        size,
-        life: 0.45 + Math.random() * 0.35,
-        maxLife: 0.8,
-        alpha: 1,
-        gravity: 340,
-        drag: 0.9,
-        shape: 'ink_splatter',
-        satellites,
-      });
-    }
-
-    // 3. Riscos de caneta no papel (pen scratches) simulando o corte físico gravado no pergaminho
-    for (let i = 0; i < scratchCount; i++) {
-      const scratchAngle = isSpinJump
-        ? (i / scratchCount) * Math.PI * 2 + Math.PI / 4
-        : baseAngle + (i - 1) * 0.3 + (Math.random() - 0.5) * 0.2;
-
-      const scratchLen = (isWeakness ? 20 : 15) + Math.random() * 12;
-      const color = i === 0 ? penDeep : penDark;
-
-      // Linhas de corte hachuradas de caneta
-      const scratchLines = [
-        {
-          dx1: -Math.cos(scratchAngle) * scratchLen,
-          dy1: -Math.sin(scratchAngle) * scratchLen,
-          dx2: Math.cos(scratchAngle) * scratchLen,
-          dy2: Math.sin(scratchAngle) * scratchLen,
-          width: 2.2 + Math.random() * 0.8,
-        },
-        {
-          dx1: -Math.cos(scratchAngle + 0.15) * (scratchLen * 0.75),
-          dy1: -Math.sin(scratchAngle + 0.15) * (scratchLen * 0.75),
-          dx2: Math.cos(scratchAngle + 0.15) * (scratchLen * 0.75),
-          dy2: Math.sin(scratchAngle + 0.15) * (scratchLen * 0.75),
-          width: 1.2,
-        },
-      ];
-
-      this.addParticle({
-        x: x + (Math.random() - 0.5) * 6,
-        y: y + (Math.random() - 0.5) * 6,
-        vx: (Math.random() - 0.5) * 20,
-        vy: -10 - Math.random() * 15,
-        color,
-        size: scratchLen,
-        life: 0.25 + Math.random() * 0.15,
-        maxLife: 0.4,
-        alpha: 1,
-        shape: 'pen_scratch',
-        scratchLines,
-      });
-    }
-  }
-
-  /**
-   * Explosão de tinta esferográfica azul ao aniquilar um inimigo
-   * O inimigo se desfaz em uma borrifada artística de tinta azul sobre o papel
-   */
-  public spawnEnemyDefeatedInkBurst(enemy: Enemy, slashDirX: number, slashDirY: number) {
-    const penDark = GAME_CONFIG.PALETTE.PEN_PRIMARY;
-    const penMid = GAME_CONFIG.PALETTE.PEN_SECONDARY;
-    const penLight = GAME_CONFIG.PALETTE.PEN_LIGHT;
-    const penDeep = GAME_CONFIG.PALETTE.PEN_DARKEST;
-
-    const inkPalette = [penDeep, penDark, penMid, penLight];
-    const centerX = enemy.x + enemy.width / 2;
-    const centerY = enemy.y + enemy.height / 2;
-
-    // 1. Grande chuveiro de gotas de tinta esferográfica azul
-    for (let i = 0; i < 28; i++) {
-      const angle = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-      const speed = 120 + Math.random() * 260;
-      const color = inkPalette[Math.floor(Math.random() * inkPalette.length)];
-
-      this.addParticle({
-        x: centerX + (Math.random() - 0.5) * (enemy.width * 0.6),
-        y: centerY + (Math.random() - 0.5) * (enemy.height * 0.6),
-        vx: Math.cos(angle) * speed + slashDirX * 60,
-        vy: Math.sin(angle) * speed - 60,
-        color,
-        size: 2.2 + Math.random() * 2.8,
-        life: 0.5 + Math.random() * 0.45,
-        maxLife: 0.95,
-        alpha: 1,
-        gravity: 380,
-        drag: 0.8,
-        shape: 'ink_droplet',
-      });
-    }
-
-    // 2. Grandes manchas de tinta (splatters) com múltiplos satélites
-    for (let i = 0; i < 10; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 50 + Math.random() * 150;
-      const color = inkPalette[Math.floor(Math.random() * 2)];
-      const size = 3.5 + Math.random() * 3.5;
-
-      const satellites: { dx: number; dy: number; r: number }[] = [];
-      const satCount = 3 + Math.floor(Math.random() * 3);
-      for (let s = 0; s < satCount; s++) {
-        const satAng = Math.random() * Math.PI * 2;
-        const satDist = size * (1.3 + Math.random() * 1.6);
-        satellites.push({
-          dx: Math.cos(satAng) * satDist,
-          dy: Math.sin(satAng) * satDist,
-          r: 0.8 + Math.random() * 1.0,
-        });
-      }
-
-      this.addParticle({
-        x: centerX + (Math.random() - 0.5) * 16,
-        y: centerY + (Math.random() - 0.5) * 16,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 40,
-        color,
-        size,
-        life: 0.6 + Math.random() * 0.4,
-        maxLife: 1.0,
-        alpha: 1,
-        gravity: 360,
-        drag: 0.85,
-        shape: 'ink_splatter',
-        satellites,
-      });
-    }
-
-    // 3. Riscos decisivos de caneta cortando o espaço onde estava o monstro
-    for (let i = 0; i < 4; i++) {
-      const scratchAngle = (i * Math.PI) / 4 + (Math.random() - 0.5) * 0.3;
-      const scratchLen = 25 + Math.random() * 20;
-
-      const scratchLines = [
-        {
-          dx1: -Math.cos(scratchAngle) * scratchLen,
-          dy1: -Math.sin(scratchAngle) * scratchLen,
-          dx2: Math.cos(scratchAngle) * scratchLen,
-          dy2: Math.sin(scratchAngle) * scratchLen,
-          width: 3.0,
-        },
-        {
-          dx1: -Math.cos(scratchAngle + 0.2) * (scratchLen * 0.7),
-          dy1: -Math.sin(scratchAngle + 0.2) * (scratchLen * 0.7),
-          dx2: Math.cos(scratchAngle + 0.2) * (scratchLen * 0.7),
-          dy2: Math.sin(scratchAngle + 0.2) * (scratchLen * 0.7),
-          width: 1.5,
-        },
-      ];
-
-      this.addParticle({
-        x: centerX,
-        y: centerY,
-        vx: (Math.random() - 0.5) * 15,
-        vy: -15,
-        color: penDeep,
-        size: scratchLen,
-        life: 0.35 + Math.random() * 0.2,
-        maxLife: 0.55,
-        alpha: 1,
-        shape: 'pen_scratch',
-        scratchLines,
-      });
-    }
-  }
-
-  /**
-   * Respingos de tinta simulando dano e sangue do jogador ao ser atingido por um inimigo
-   */
-  public spawnPlayerDamageInkParticles(x: number, y: number, knockbackDir: number) {
-    const penDark = GAME_CONFIG.PALETTE.PEN_PRIMARY;
-    const penDeep = GAME_CONFIG.PALETTE.PEN_DARKEST;
-    const bloodRed = GAME_CONFIG.PALETTE.FX_BLOOD_RED;
-
-    // Gotas escorrendo em spray na direção do impacto
-    for (let i = 0; i < 14; i++) {
-      const angle = (knockbackDir > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * 1.5;
-      const speed = 100 + Math.random() * 180;
-      // Predominância de tinta esferográfica azul com toques de tinta carmim
-      const color = i % 3 === 0 ? bloodRed : (i % 2 === 0 ? penDeep : penDark);
-
-      this.addParticle({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 30,
-        color,
-        size: 2.0 + Math.random() * 2.0,
-        life: 0.4 + Math.random() * 0.3,
-        maxLife: 0.7,
-        alpha: 1,
-        gravity: 420,
-        drag: 0.8,
-        shape: 'ink_droplet',
-      });
-    }
-
-    // Manchas orgânicas de tinta com respingos satélites
-    for (let i = 0; i < 5; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 100;
-      const color = i % 2 === 0 ? penDark : bloodRed;
-
-      const satellites: { dx: number; dy: number; r: number }[] = [];
-      const satCount = 2 + Math.floor(Math.random() * 2);
-      for (let s = 0; s < satCount; s++) {
-        const satAng = Math.random() * Math.PI * 2;
-        const satDist = 4 + Math.random() * 6;
-        satellites.push({
-          dx: Math.cos(satAng) * satDist,
-          dy: Math.sin(satAng) * satDist,
-          r: 0.7 + Math.random() * 0.8,
-        });
-      }
-
-      this.addParticle({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 20,
-        color,
-        size: 3.0 + Math.random() * 2.0,
-        life: 0.5 + Math.random() * 0.3,
-        maxLife: 0.8,
-        alpha: 1,
-        gravity: 360,
-        drag: 0.85,
-        shape: 'ink_splatter',
-        satellites,
-      });
-    }
-
-    // Risco de garra/corte no papel
-    this.addParticle({
-      x,
-      y,
-      vx: knockbackDir * 10,
-      vy: -5,
-      color: penDeep,
-      size: 18,
-      life: 0.28,
-      maxLife: 0.28,
-      alpha: 1,
-      shape: 'pen_scratch',
-      scratchLines: [
-        {
-          dx1: -12,
-          dy1: -10,
-          dx2: 12,
-          dy2: 10,
-          width: 2.2,
-        },
-        {
-          dx1: -8,
-          dy1: -14,
-          dx2: 14,
-          dy2: 6,
-          width: 1.6,
-        },
-      ],
-    });
   }
 
   private triggerScreenShake(duration: number, intensity: number) {
@@ -1394,13 +1230,30 @@ export class GameEngine {
       npc.render(ctx, this.renderer, isPlayerNearby);
     }
 
+    // 3b. Renderiza Collectibles
+    if ((this.renderer as any).renderCollectibles) {
+       (this.renderer as any).renderCollectibles(ctx, this.collectibles);
+    }
     // 4. Renderiza Inimigos
     for (const enemy of this.enemies) {
       enemy.render(ctx, this.renderer);
     }
 
+    // 4b. Renderiza Poças de Tinta (Abaixo do Jogador)
+    this.renderer.renderAoePuddles(ctx, this.aoePuddles);
+    
     // 5. Renderiza o Jogador (O Cavaleiro Arruinado)
     this.player.render(ctx, this.renderer, this.inventory.hasSaltCoating);
+
+    // 5a1. Renderiza Aura Animada de Cura
+    this.renderer.renderPlayerHealingAura(
+      ctx,
+      this.player.x,
+      this.player.y,
+      this.player.width,
+      this.player.height,
+      this.player.healingAuraTimer
+    );
 
     // 5a. Renderiza Aura e Centelhas de Ascensão do Cavaleiro
     this.renderer.renderPlayerAscensionAura(
@@ -1418,14 +1271,17 @@ export class GameEngine {
 
     // 6. Renderiza Partículas no Espaço de Mundo
     this.renderer.renderParticles(ctx, this.particles);
+    
+    // 6.5. Renderiza Fireballs
+    this.renderer.renderFireballs(ctx, this.fireballs);
 
     // 7. Renderiza Textos Flutuantes de Dano
     this.renderer.renderFloatingTexts(ctx, this.floatingTexts);
 
     ctx.restore();
 
-    // 8. HUD Completo (Vida, Estamina, Ascensão)
-    this.renderer.renderPlayerHUD(ctx, this.player.hp, this.player.maxHp, this.player.stamina, this.player.maxStamina, this.getAscensionStats(), this.player.animTime);
+    // 8. HUD Completo (Vida, Estamina, Magia, Ascensão)
+    this.renderer.renderPlayerHUD(ctx, this.player.hp, this.player.maxHp, this.player.stamina, this.player.maxStamina, this.player.mp, this.player.maxMp, this.getAscensionStats(), this.player.animTime);
 
     // 8a. Banner Ilustrado da Seção (Ao entrar em nova área)
     this.renderer.renderSectionTitleBanner(

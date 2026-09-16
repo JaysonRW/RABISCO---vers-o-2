@@ -12,6 +12,8 @@ export class Destructible {
   public height: number;
   public hp: number;
   public isDestroyed: boolean = false;
+  public isDestroying: boolean = false;
+  public animTime: number = 0;
   
   constructor(id: string, type: 'box' | 'vase' | 'rubble', x: number, y: number) {
     this.id = id;
@@ -21,8 +23,8 @@ export class Destructible {
     
     // Set dimensions based on type
     if (type === 'box') {
-      this.width = 30;
-      this.height = 30;
+      this.width = 40;
+      this.height = 40;
       this.hp = 1;
     } else if (type === 'vase') {
       this.width = 20;
@@ -44,40 +46,32 @@ export class Destructible {
     };
   }
 
-  public takeDamage(info: DamageInfo, inventory: InventoryManager, addParticles: (particles: any[]) => void, addFloatingText?: (x: number, y: number, text: string, color: string) => void): DamageResult {
-    if (this.isDestroyed) {
+  public takeDamage(info: DamageInfo, spawnCollectible: (type: string, x: number, y: number) => void, addParticles: (particles: any[]) => void, addFloatingText?: (x: number, y: number, text: string, color: string) => void): DamageResult {
+    if (this.isDestroyed || this.isDestroying) {
       return { dealt: 0, isImmune: false, isWeakness: false, defeated: false };
     }
 
     this.hp -= info.amount;
     
-    if (this.hp <= 0) {
-      this.isDestroyed = true;
+    if (this.hp <= 0 && !this.isDestroying) {
+      this.isDestroying = true;
+      this.animTime = 0;
       
-      // Drop an item
-      const drops = ['purifying_salt', 'holy_water'];
-      const randomDrop = drops[Math.floor(Math.random() * drops.length)];
-      
-      const isSalt = randomDrop === 'purifying_salt';
-      const itemName = isSalt ? 'Sal Purificador' : 'Água Benta';
-      
-      inventory.addItem({
-        id: randomDrop, // Use the EXACT id so they stack correctly in inventory
-        name: itemName,
-        description: 'Recurso caído dos escombros.',
-        type: isSalt ? 'COATING' : 'CONSUMABLE',
-        icon: isSalt ? 'salt' : 'flask',
-        count: 1
-      });
-      
-      if (isSalt) {
-        inventory.addSalt(1); // Force sync the salt count variable
+      // Tabela de Probabilidade de Drop (Loot Table)
+      const roll = Math.random();
+      let dropType = null;
+      if (roll < 0.3) {
+          dropType = 'heart'; // 30% chance coração
+      } else if (roll < 0.6) {
+          dropType = 'purifying_salt'; // 30% chance sal
+      } else if (roll < 0.8) {
+          dropType = 'holy_water'; // 20% chance água benta
       }
 
-      if (addFloatingText) {
-        addFloatingText(this.x + this.width / 2, this.y - 20, `+1 ${itemName}`, GAME_CONFIG.PALETTE.PEN_PRIMARY);
+      // Se rolou um item, joga ele no mundo!
+      if (dropType) {
+          spawnCollectible(dropType, this.x + this.width / 2, this.y + this.height / 2);
       }
-
 
       // Explosion particles
       const newParticles = [];
@@ -106,6 +100,17 @@ export class Destructible {
     }
     
     return { dealt: info.amount, isImmune: false, isWeakness: false, defeated: false };
+  }
+
+
+  public update(dt: number) {
+    if (this.isDestroying) {
+      this.animTime += dt;
+      if (this.animTime > 0.4) {
+        this.isDestroyed = true;
+        this.isDestroying = false;
+      }
+    }
   }
 
   public render(ctx: CanvasRenderingContext2D, renderer: PenRenderer): void {

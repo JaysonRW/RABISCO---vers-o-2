@@ -21,6 +21,17 @@ export class PenRenderer {
     this.loadPatioGround();
     this.loadPlatformImages();
     this.loadLordeCarmimImg();
+    this.fogoSprites = [];
+    (this as any).caixaSprites = [];
+    if (typeof window !== "undefined") {
+      for(let i=1; i<=4; i++) {
+        const img = new Image();
+        img.src = `/fogo${i}.png`;
+        this.fogoSprites.push(img);
+      }
+      
+
+    }
   }
 
 
@@ -569,6 +580,78 @@ export class PenRenderer {
   }
 
   // Renderiza o Cavaleiro Arruinado (Player) - Animação Procedural em Traços de Palito e Caneta Esferográfica
+
+  public renderAoePuddles(ctx: CanvasRenderingContext2D, puddles: {x: number, y: number, radius: number, maxRadius: number, life: number, maxLife: number}[]) {
+    ctx.save();
+    for (const puddle of puddles) {
+      const progress = puddle.life / puddle.maxLife; // 0 to 1
+      const currentRadius = puddle.radius;
+      
+      // Efeito de fade-out
+      const alpha = progress < 0.2 ? (progress / 0.2) : (1 - (progress - 0.2) / 0.8) * 0.8;
+      
+      ctx.globalAlpha = Math.max(0, alpha);
+      
+      ctx.beginPath();
+      // Desenha uma elipse achatada no chão para dar perspectiva 2.5D
+      ctx.ellipse(puddle.x, puddle.y, currentRadius, currentRadius * 0.3, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#051442'; // Cor de nankin/tinta escura
+      ctx.fill();
+      
+      // Borda da poça mais escura
+      ctx.beginPath();
+      ctx.ellipse(puddle.x, puddle.y, currentRadius, currentRadius * 0.3, 0, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#000000';
+      ctx.stroke();
+      
+      // Alguns detalhes internos tipo ranhuras
+      ctx.beginPath();
+      ctx.ellipse(puddle.x, puddle.y, currentRadius * 0.7, currentRadius * 0.2, 0, 0, Math.PI * 2);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  public renderCollectibles(ctx: CanvasRenderingContext2D, items: any[]) {
+    ctx.save();
+    for (const item of items) {
+      if (item.type === 'heart') {
+         // Coração desenhado
+         ctx.fillStyle = '#EF4444';
+         ctx.beginPath();
+         ctx.arc(item.x + 4, item.y + 4, 4, 0, Math.PI*2);
+         ctx.arc(item.x + 12, item.y + 4, 4, 0, Math.PI*2);
+         ctx.lineTo(item.x + 8, item.y + 14);
+         ctx.fill();
+         ctx.strokeStyle = '#7F1D1D';
+         ctx.stroke();
+      } else if (item.type === 'purifying_salt') {
+         // Saquinho de sal
+         ctx.fillStyle = '#E5E7EB';
+         ctx.fillRect(item.x + 2, item.y + 4, 12, 12);
+         ctx.strokeStyle = '#000000';
+         ctx.strokeRect(item.x + 2, item.y + 4, 12, 12);
+         ctx.fillStyle = '#6B7280';
+         ctx.fillRect(item.x + 6, item.y + 8, 4, 4);
+      } else {
+         // Frasco de água benta
+         ctx.fillStyle = '#3B82F6';
+         ctx.beginPath();
+         ctx.moveTo(item.x + 8, item.y);
+         ctx.lineTo(item.x + 14, item.y + 16);
+         ctx.lineTo(item.x + 2, item.y + 16);
+         ctx.closePath();
+         ctx.fill();
+         ctx.strokeStyle = '#000000';
+         ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   public renderPlayer(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -1330,13 +1413,87 @@ export class PenRenderer {
   public drawDestructible(ctx: CanvasRenderingContext2D, destructible: Destructible) {
     ctx.save();
     const { x, y, width, height, type } = destructible;
+    const isDestroying = (destructible as any).isDestroying;
+    const animTime = (destructible as any).animTime || 0;
     const primary = GAME_CONFIG.PALETTE.PEN_PRIMARY;
     const hatch = GAME_CONFIG.PALETTE.PEN_HATCHING;
 
-    ctx.fillStyle = '#ffffff'; // Solid white background so it stands out against the parchment
     if (type === 'box') {
-      ctx.fillRect(x, y, width, height);
-    } else if (type === 'vase') {
+      let progress = 0;
+      if (isDestroying) {
+        progress = Math.min(1, animTime / 0.4);
+      }
+
+      ctx.strokeStyle = primary;
+      ctx.fillStyle = '#E3D5C8'; // Textura de madeira clara/pergaminho encardido
+      
+      const drawPiece = (px, py, pw, ph, offX, offY, rot, alpha) => {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, alpha);
+          ctx.translate(px + pw/2 + offX, py + ph/2 + offY);
+          ctx.rotate(rot);
+          
+          ctx.fillRect(-pw/2, -ph/2, pw, ph);
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(-pw/2, -ph/2, pw, ph);
+          
+          // X da caixa
+          ctx.beginPath();
+          ctx.moveTo(-pw/2, -ph/2);
+          ctx.lineTo(pw/2, ph/2);
+          ctx.moveTo(pw/2, -ph/2);
+          ctx.lineTo(-pw/2, ph/2);
+          ctx.stroke();
+          
+          ctx.restore();
+      };
+
+      if (progress === 0) {
+         // Caixa Intacta
+         ctx.fillRect(x, y, width, height);
+         
+         // Detalhes da madeira (X e ripas horizontais)
+         ctx.lineWidth = 1.5;
+         ctx.beginPath();
+         ctx.moveTo(x, y);
+         ctx.lineTo(x + width, y + height);
+         ctx.moveTo(x + width, y);
+         ctx.lineTo(x, y + height);
+         
+         ctx.moveTo(x, y + height*0.33);
+         ctx.lineTo(x + width, y + height*0.33);
+         ctx.moveTo(x, y + height*0.66);
+         ctx.lineTo(x + width, y + height*0.66);
+         ctx.stroke();
+         
+         // Borda externa grossa
+         ctx.lineWidth = 3;
+         ctx.strokeRect(x, y, width, height);
+         
+         // Pregar os cantos (pregos)
+         ctx.fillStyle = primary;
+         ctx.fillRect(x + 2, y + 2, 2, 2);
+         ctx.fillRect(x + width - 4, y + 2, 2, 2);
+         ctx.fillRect(x + 2, y + height - 4, 2, 2);
+         ctx.fillRect(x + width - 4, y + height - 4, 2, 2);
+      } else {
+         // Animação de Quebra (Dividida em 4 pedaços ejetados)
+         const alpha = 1 - progress;
+         const dist = progress * 25; // Distância que os pedaços voam
+         const rotMax = Math.PI / 3;
+         
+         drawPiece(x, y, width/2, height/2, -dist, -dist - progress*10, -progress*rotMax, alpha);
+         drawPiece(x + width/2, y, width/2, height/2, dist, -dist - progress*10, progress*rotMax, alpha);
+         drawPiece(x, y + height/2, width/2, height/2, -dist, dist, -progress*rotMax, alpha);
+         drawPiece(x + width/2, y + height/2, width/2, height/2, dist, dist, progress*rotMax, alpha);
+      }
+      
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = '#ffffff'; // Solid white background so it stands out against the parchment
+    if (type === 'vase') {
       ctx.fillRect(x, y, width, height);
     } else if (type === 'rubble') {
       ctx.fillRect(x, y, width, height);
@@ -1734,6 +1891,31 @@ export class PenRenderer {
   }
 
   // Renderiza textos flutuantes de dano e status (ex: "IMUNE!", "FRAQUEZA!", "35")
+  public renderFireballs(ctx: CanvasRenderingContext2D, fireballs: any[]) {
+    ctx.save();
+    for (const fb of fireballs) {
+      if (this.fogoSprites && this.fogoSprites.length === 4) {
+        const frameIndex = Math.floor(fb.animTime * 15) % 4;
+        const img = this.fogoSprites[frameIndex];
+        const size = fb.radius * 3.5;
+        ctx.save();
+        ctx.translate(fb.x, fb.y);
+        if (fb.facing === -1) {
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(img, -size/2, -size/2, size, size);
+        ctx.restore();
+      } else {
+        // Fallback circle
+        ctx.fillStyle = '#FF5500';
+        ctx.beginPath();
+        ctx.arc(fb.x, fb.y, fb.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   public renderFloatingTexts(ctx: CanvasRenderingContext2D, texts: FloatingText[]) {
     ctx.save();
     for (const ft of texts) {
@@ -1834,6 +2016,56 @@ export class PenRenderer {
   /**
    * Renderiza a aura de Ascensão ao redor do Cavaleiro quando possui níveis de ascensão
    */
+    public renderPlayerHealingAura(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    timer: number
+  ) {
+    if (timer <= 0) return;
+
+    ctx.save();
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    
+    const progress = 1 - (timer / 0.8); 
+    const alpha = timer > 0.4 ? 0.8 : (timer / 0.4) * 0.8;
+    
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+
+    // Círculo expansivo 1
+    ctx.beginPath();
+    ctx.arc(0, 0, 30 + progress * 50, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#10B981'; // Verde brilhante
+    ctx.stroke();
+    
+    // Círculo interno giratório (arcos)
+    ctx.rotate(progress * Math.PI * 4);
+    ctx.beginPath();
+    ctx.arc(0, 0, 20 + progress * 20, 0.2, Math.PI - 0.2);
+    ctx.arc(0, 0, 20 + progress * 20, Math.PI + 0.2, Math.PI * 2 - 0.2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#34D399';
+    ctx.stroke();
+
+    // Simbolo / Cruz de cura
+    ctx.beginPath();
+    const crossSize = 10 + progress * 10;
+    ctx.moveTo(-crossSize, 0);
+    ctx.lineTo(crossSize, 0);
+    ctx.moveTo(0, -crossSize);
+    ctx.lineTo(0, crossSize);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#10B981';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   public renderPlayerAscensionAura(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -1882,7 +2114,7 @@ export class PenRenderer {
    * Renderiza a Barra de Progresso de 'Ascensão' no topo do Canvas
    * Estilo Manuscrito Gótico e Caneta Esferográfica com Ornamentos e Efeito de Almas
    */
-  public renderPlayerHUD(ctx: CanvasRenderingContext2D, hp: number, maxHp: number, stamina: number, maxStamina: number, stats: AscensionStats, animTime: number) {
+  public renderPlayerHUD(ctx: CanvasRenderingContext2D, hp: number, maxHp: number, stamina: number, maxStamina: number, mp: number, maxMp: number, stats: AscensionStats, animTime: number) {
     ctx.save();
     const barW = 280;
     let startY = 24;
@@ -1988,6 +2220,21 @@ export class PenRenderer {
       GAME_CONFIG.PALETTE.PEN_LIGHT, 
       GAME_CONFIG.PALETTE.FX_SOUL_CYAN, 
       '#38BDF8', 
+      false
+    );
+
+    // Barra de Magia (MP)
+    startY += 32;
+    drawBar(
+      startY, 
+      10, 
+      'MAGIA', 
+      `${Math.round(mp)} / ${maxMp}`, 
+      null, 
+      (mp / maxMp) * 100, 
+      GAME_CONFIG.PALETTE.PEN_LIGHT, 
+      '#9933FF', 
+      '#7700FF', 
       false
     );
 

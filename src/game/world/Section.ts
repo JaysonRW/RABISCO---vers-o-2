@@ -282,6 +282,12 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'f_ghoul_3', type: 'GHOUL', x: 1980, y: 388, patrolMinX: 1760, patrolMaxX: 2360 },
       { id: 'f_ghost_3', type: 'GHOST', x: 2260, y: 170 },
     ],
+    destructibles: [
+      { id: 'f_box_1', type: 'box', x: 160, y: 400 },
+      { id: 'f_box_2', type: 'box', x: 210, y: 400 },
+      { id: 'f_box_3', type: 'box', x: 800, y: 400 },
+      { id: 'f_box_4', type: 'box', x: 1750, y: 400 },
+    ],
     npcConfigs: [],
   },
 
