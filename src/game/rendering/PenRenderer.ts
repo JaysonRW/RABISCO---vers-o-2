@@ -5,6 +5,7 @@
 
 import { GAME_CONFIG } from '../config';
 import { AscensionStats, DamageType, Direction, FloatingText, Particle, PlayerState, SoulOrb } from '../types';
+import { Destructible } from '../entities/Destructible';
 import { BiomeTheme } from '../world/Section';
 import { ParallaxBackgroundSystem } from './ParallaxBackgroundSystem';
 import { AssetLoader } from '../utils/AssetLoader';
@@ -12,6 +13,8 @@ import { AssetLoader } from '../utils/AssetLoader';
 export class PenRenderer {
   private noiseCanvas: HTMLCanvasElement | null = null;
   private backgroundSystem: ParallaxBackgroundSystem = new ParallaxBackgroundSystem();
+  private fogoSprites: HTMLImageElement[] = [];
+  private caixaSprites: HTMLImageElement[] = [];
   private treesSprite: HTMLCanvasElement | null = null;
   private patioGroundBuffer: HTMLCanvasElement | null = null;
 
@@ -1410,6 +1413,99 @@ export class PenRenderer {
 
   // Renderiza NPC (Monge Cego / Eremita do Sal nas Ruínas)
   
+
+  public renderZombie(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    facing: Direction,
+    animTime: number,
+    hp: number,
+    maxHp: number,
+    isHurt: boolean
+  ) {
+    ctx.save();
+    const centerX = x + w / 2;
+    const bottomY = y + h;
+    ctx.translate(centerX, bottomY);
+    ctx.scale(facing, 1);
+
+    const penDark = GAME_CONFIG.PALETTE.PEN_DARKEST;
+    const zombieGreen = '#4ade80'; // Green character
+
+    if (isHurt) {
+      ctx.globalAlpha = 0.5 + Math.sin(animTime * 20) * 0.3;
+      ctx.fillStyle = GAME_CONFIG.PALETTE.FX_BLOOD_RED;
+      ctx.beginPath();
+      ctx.arc(0, -h / 2, w, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const walkCycle = Math.sin(animTime * 8);
+    const bodyW = w * 0.6;
+    const bodyH = h * 0.5;
+
+    // Body
+    ctx.fillStyle = zombieGreen;
+    ctx.strokeStyle = penDark;
+    ctx.lineWidth = 1.5;
+    
+    ctx.beginPath();
+    ctx.ellipse(0, -bodyH, bodyW / 2, bodyH / 2, walkCycle * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Head
+    const headSway = Math.sin(animTime * 3) * 0.2;
+    ctx.beginPath();
+    ctx.arc(walkCycle * 2, -h + 6, w * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Eyes
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(walkCycle * 2 + 4, -h + 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Arms
+    ctx.beginPath();
+    ctx.moveTo(0, -bodyH * 1.5);
+    ctx.lineTo(15 + walkCycle * 5, -bodyH * 1.2);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(0, -bodyH * 1.5);
+    ctx.lineTo(20 + walkCycle * -2, -bodyH * 1.4);
+    ctx.stroke();
+
+    // Legs
+    ctx.beginPath();
+    ctx.moveTo(-5, -bodyH * 0.5);
+    ctx.lineTo(-5 - walkCycle * 10, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(5, -bodyH * 0.5);
+    ctx.lineTo(5 + walkCycle * 10, 0);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Health Bar
+    if (hp < maxHp) {
+      const barW = w;
+      const barH = 4;
+      const barX = x;
+      const barY = y - 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(barX, barY, barW, barH);
+      ctx.fillStyle = GAME_CONFIG.PALETTE.FX_BLOOD_RED;
+      ctx.fillRect(barX, barY, barW * (hp / maxHp), barH);
+    }
+  }
+
   public drawDestructible(ctx: CanvasRenderingContext2D, destructible: Destructible) {
     ctx.save();
     const { x, y, width, height, type } = destructible;
@@ -1418,7 +1514,8 @@ export class PenRenderer {
     const primary = GAME_CONFIG.PALETTE.PEN_PRIMARY;
     const hatch = GAME_CONFIG.PALETTE.PEN_HATCHING;
 
-    if (type === 'box') {
+    const destType = type as string;
+    if (destType === 'box') {
       let progress = 0;
       if (isDestroying) {
         progress = Math.min(1, animTime / 0.4);
@@ -1492,10 +1589,11 @@ export class PenRenderer {
       return;
     }
 
+    // @ts-ignore
     ctx.fillStyle = '#ffffff'; // Solid white background so it stands out against the parchment
     if (type === 'vase') {
       ctx.fillRect(x, y, width, height);
-    } else if (type === 'rubble') {
+    } else if (destType === 'rubble') {
       ctx.fillRect(x, y, width, height);
     }
 
@@ -1515,21 +1613,21 @@ export class PenRenderer {
       const ox = (Math.random() - 0.5) * 1.5;
       const oy = (Math.random() - 0.5) * 1.5;
       
-      if (type === 'box') {
+      if (destType === 'box') {
         ctx.rect(x + ox, y + oy, width, height);
         // Draw diagonal cross on box
         ctx.moveTo(x + ox, y + oy);
         ctx.lineTo(x + width + ox, y + height + oy);
         ctx.moveTo(x + width + ox, y + oy);
         ctx.lineTo(x + ox, y + height + oy);
-      } else if (type === 'vase') {
+      } else if (destType === 'vase') {
         // Simple vase shape
         ctx.moveTo(x + width * 0.2 + ox, y + oy);
         ctx.lineTo(x + width * 0.8 + ox, y + oy);
         ctx.quadraticCurveTo(x + width + ox, y + height / 2 + oy, x + width * 0.7 + ox, y + height + oy);
         ctx.lineTo(x + width * 0.3 + ox, y + height + oy);
         ctx.quadraticCurveTo(x + ox, y + height / 2 + oy, x + width * 0.2 + ox, y + oy);
-      } else if (type === 'rubble') {
+      } else if (destType === 'rubble') {
         // Irregular rubble pile
         ctx.moveTo(x + ox, y + height + oy);
         ctx.lineTo(x + width * 0.3 + ox, y + height * 0.2 + oy);
@@ -2116,7 +2214,7 @@ export class PenRenderer {
    */
   public renderPlayerHUD(ctx: CanvasRenderingContext2D, hp: number, maxHp: number, stamina: number, maxStamina: number, mp: number, maxMp: number, stats: AscensionStats, animTime: number) {
     ctx.save();
-    const barW = 280;
+    const barW = 320;
     let startY = 24;
     const barX = 30;
 
@@ -2243,8 +2341,8 @@ export class PenRenderer {
     drawBar(
       startY, 
       14, 
-      `ASCENSÃO: GRAU ${stats.level} • ${stats.title.toUpperCase()}`, 
-      `${stats.soulsCurrentLevel}/${stats.soulsNeededForNext} ALMAS (${stats.progressPercent}%)`, 
+      `GRAU ${stats.level} • ${stats.title.toUpperCase()}`, 
+      `${stats.soulsCurrentLevel}/${stats.soulsNeededForNext} ALMAS`, 
       `Bônus: ${stats.bonusText} (${Math.round(stats.damageMultiplier * 100)}% Poder)`, 
       stats.progressPercent, 
       GAME_CONFIG.PALETTE.PEN_LIGHT, 

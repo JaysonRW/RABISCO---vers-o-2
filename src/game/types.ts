@@ -34,6 +34,7 @@ export enum EnemyType {
   GHOST = 'GHOST',             // Espectro / Fantasma
   VAMPIRE = 'VAMPIRE',         // Vampiro
   ZOMBIE = 'ZOMBIE',           // Zumbi
+  GHOUL = 'GHOUL',             // Carniçal
   SKELETON = 'SKELETON',       // Esqueleto
 }
 
@@ -79,7 +80,8 @@ export type ParticleShape =
   | 'ink_droplet'
   | 'ink_slash'
   | 'pen_scratch'
-  | 'ink_blot';
+  | 'ink_blot'
+  | 'ZOMBIE_HEAD';
 
 export interface Particle {
   x: number;

@@ -1140,7 +1140,7 @@ export class ParallaxBackgroundSystem {
     }
 
     // 4. Partículas e Bruma Atmosférica Móvel (VFX MÓVEL - Prancha 04)
-    this.renderAtmosphericVFX(ctx, cameraX, dt, theme);
+    this.renderAtmosphericVFX(ctx, cameraX, dt);
   }
 
   // Renderiza Parallax do Mosteiro / Montanhas / Castelos / Nuvens

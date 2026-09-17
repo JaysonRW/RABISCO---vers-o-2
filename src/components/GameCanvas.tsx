@@ -47,6 +47,8 @@ export const GameCanvas: React.FC = () => {
     maxHp: GAME_CONFIG.PLAYER.MAX_HP,
     stamina: GAME_CONFIG.PLAYER.MAX_STAMINA,
     maxStamina: GAME_CONFIG.PLAYER.MAX_STAMINA,
+    mp: 100,
+    maxMp: 100,
     hasSaltWeapon: false,
     saltDuration: 0,
     saltCount: 5,
@@ -297,7 +299,7 @@ export const GameCanvas: React.FC = () => {
             mp: stats.mp,
             maxMp: stats.maxMp,
             ascension: stats.ascension,
-            saltCount: engineRef.current?.inventory.saltCount || 0
+            saltCount: stats.saltCount || 0
           }} 
           onClose={() => setShowStatusScreen(false)} 
         />

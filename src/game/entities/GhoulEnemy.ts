@@ -21,7 +21,7 @@ export class GhoulEnemy extends Enemy {
   constructor(id: string, x: number, y: number, patrolMinX: number = x - 120, patrolMaxX: number = x + 120) {
     super(
       id,
-      EnemyType.ZOMBIE,
+      EnemyType.GHOUL,
       x,
       y,
       40,

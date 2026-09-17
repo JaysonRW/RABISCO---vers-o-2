@@ -8,6 +8,7 @@ import { Player } from './entities/Player';
 import { Fireball } from './entities/Fireball';
 import { Enemy } from './entities/Enemy';
 import { GhostEnemy } from './entities/GhostEnemy';
+import { ZombieEnemy } from './entities/ZombieEnemy';
 import { GhoulEnemy } from './entities/GhoulEnemy';
 import { NPC, DialogChoice } from './entities/NPC';
 import { Destructible } from './entities/Destructible';
@@ -30,7 +31,10 @@ export interface GameEngineCallbacks {
     saltCount: number;
     playerState: PlayerState;
     enemiesAlive: number;
+    mp: number;
+    maxMp: number;
     ascension: AscensionStats;
+    inventory?: any[];
     currentSection?: {
       id: string;
       name: string;
@@ -184,7 +188,9 @@ export class GameEngine {
 
   public loadSectionEnemies(section: SectionData) {
     this.enemies = section.enemySpawns.map(cfg => {
-      if (cfg.type === 'GHOUL') {
+      if (cfg.type === 'ZOMBIE') {
+        return new ZombieEnemy(cfg.id, cfg.x, cfg.y);
+      } else if (cfg.type === 'GHOUL') {
         return new GhoulEnemy(cfg.id, cfg.x, cfg.y, cfg.patrolMinX, cfg.patrolMaxX);
       } else {
         return new GhostEnemy(cfg.id, cfg.x, cfg.y);
@@ -256,6 +262,7 @@ export class GameEngine {
       100,
       Math.round((this.ascensionSoulsCurrentLevel / this.ascensionSoulsNeeded) * 100)
     );
+    if (isNaN(progressPercent)) console.log("NAN detected:", this.ascensionSoulsCurrentLevel, this.ascensionSoulsNeeded, GAME_CONFIG.ASCENSION.SOULS_BASE_REQ);
     return {
       souls: this.totalSoulsCollected,
       soulsCurrentLevel: this.ascensionSoulsCurrentLevel,
@@ -427,10 +434,11 @@ export class GameEngine {
     const spawnConfig = this.sectionManager.currentSection.enemySpawns.find(s => s.id === enemy.id);
     const spawnX = spawnConfig ? spawnConfig.x : Math.max(120, Math.min(this.level.width - 120, enemy.x));
     const spawnY = spawnConfig ? spawnConfig.y : 220;
+    const isZombie = enemy.type === EnemyType.ZOMBIE;
     this.enemyRespawnQueue.push({
       x: spawnX,
       y: spawnY,
-      timer: 5.5,
+      timer: isZombie ? 1.5 : 5.5,
       id: enemy.id,
     });
   }
@@ -633,7 +641,7 @@ export class GameEngine {
         
         // Bate em inimigos próximos
         for (const enemy of this.enemies) {
-            if (!enemy.isDefeated) {
+            if (!enemy.isAlive) {
                 const eX = enemy.x + enemy.width / 2;
                 const eY = enemy.y + enemy.height / 2;
                 const dist = Math.sqrt(Math.pow(eX - pX, 2) + Math.pow(eY - pY, 2));
@@ -663,7 +671,7 @@ export class GameEngine {
       let hit = false;
       
       for (const enemy of this.enemies) {
-        if (!enemy.isDefeated) {
+        if (!enemy.isAlive) {
           const eBounds = enemy.getBounds();
           if (this.checkOverlap(fbBounds, eBounds)) {
             hit = true;
@@ -868,9 +876,14 @@ export class GameEngine {
       respawn.timer -= dt;
       if (respawn.timer <= 0) {
         const spawnCfg = this.sectionManager.currentSection.enemySpawns.find(s => s.id === respawn.id);
-        const newEnemy = spawnCfg?.type === 'GHOUL'
-          ? new GhoulEnemy(respawn.id, respawn.x, respawn.y, spawnCfg.patrolMinX, spawnCfg.patrolMaxX)
-          : new GhostEnemy(respawn.id, respawn.x, respawn.y);
+        let newEnemy: Enemy;
+        if (spawnCfg?.type === 'ZOMBIE') {
+          newEnemy = new ZombieEnemy(respawn.id, respawn.x, respawn.y);
+        } else if (spawnCfg?.type === 'GHOUL') {
+          newEnemy = new GhoulEnemy(respawn.id, respawn.x, respawn.y, spawnCfg.patrolMinX, spawnCfg.patrolMaxX);
+        } else {
+          newEnemy = new GhostEnemy(respawn.id, respawn.x, respawn.y);
+        }
         this.enemies.push(newEnemy);
         this.enemyRespawnQueue.splice(i, 1);
 
@@ -917,6 +930,14 @@ export class GameEngine {
       }
       if (p.vRot) {
         p.rotation = (p.rotation || 0) + p.vRot * dt;
+      }
+      
+      // Colisão da cabeça rolando com o chão
+      if (p.shape === 'ZOMBIE_HEAD' && p.y > 430) {
+        p.y = 430;
+        p.vy *= -0.6; // Quique da cabeça
+        p.vx *= 0.95; // Fricção
+        if (Math.abs(p.vy) < 20) p.vy = 0;
       }
       p.alpha = Math.max(0, p.life / p.maxLife);
     }
@@ -1014,6 +1035,8 @@ export class GameEngine {
       saltCount: this.inventory.saltCharges,
       playerState: this.player.state,
       enemiesAlive: aliveCount,
+      mp: this.player.mp,
+      maxMp: this.player.maxMp,
       ascension: this.getAscensionStats(),
       inventory: this.inventory.items,
       currentSection: {
@@ -1075,8 +1098,61 @@ export class GameEngine {
           this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FFFFFF', 1.0);
         }
 
+        if (dmgResult.defeated) {
+          if ((soundManager as any).playGhostWail) (soundManager as any).playGhostWail();
+          this.triggerScreenShake(0.12, 6);
+
+          for (let p = 0; p < 20; p++) {
+             this.particles.push({
+               x: enemy.x + enemy.width / 2, 
+               y: enemy.y + enemy.height / 2,
+               vx: (Math.random() - 0.5) * 400,
+               vy: (Math.random() - 0.5) * 400,
+               color: isSaltActive ? '#FFFFFF' : GAME_CONFIG.PALETTE.PEN_PRIMARY, 
+               size: Math.random() * 5 + 2,
+               life: 0, 
+               maxLife: 0.5 + Math.random() * 0.5, 
+               alpha: 1, 
+               shape: isSaltActive ? 'spark' : 'ink_slash'
+             });
+          }
+
+          this.soulOrbs.push({
+             id: this.nextSoulId++,
+             x: enemy.x + enemy.width / 2,
+             y: enemy.y + enemy.height / 2,
+             vx: (Math.random() - 0.5) * 150,
+             vy: -200 - Math.random() * 100,
+             life: 15,
+             maxLife: 15,
+             value: 1,
+             animTime: 0,
+             collected: false
+          });
+
+          this.queueEnemyRespawn(enemy);
+          
+          if (enemy.type === EnemyType.ZOMBIE) {
+            // Spawn rolling head particle
+            this.particles.push({
+              x: enemy.x + enemy.width / 2,
+              y: enemy.y,
+              vx: (Math.random() - 0.5) * 200,
+              vy: -150 - Math.random() * 100,
+              life: 4.0,
+              maxLife: 4.0,
+              color: '#4ade80',
+              size: 8,
+              alpha: 1,
+              gravity: 1200,
+              rotation: 0,
+              vRot: Math.random() > 0.5 ? 10 : -10,
+              shape: 'ZOMBIE_HEAD'
+            });
+          }
+        }
+
         if (isSaltActive) {
-           this.inventory.useSalt();
            for(let p=0; p<8; p++) {
              this.particles.push({
                x: hitX + (Math.random()-0.5)*20, y: hitY + (Math.random()-0.5)*20,
