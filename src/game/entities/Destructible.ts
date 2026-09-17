@@ -2,6 +2,7 @@ import { Rect, DamageInfo, DamageResult, ParticleShape } from '../types';
 import { PenRenderer } from '../rendering/PenRenderer';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { GAME_CONFIG } from '../config';
+import { rollLoot } from '../utils/LootSystem';
 
 export class Destructible {
   public id: string;
@@ -14,6 +15,10 @@ export class Destructible {
   public isDestroyed: boolean = false;
   public isDestroying: boolean = false;
   public animTime: number = 0;
+  public vx: number = 0;
+  public vy: number = 0;
+  public isGrounded: boolean = true;
+  public mass: number = 1;
   
   constructor(id: string, type: 'box' | 'vase' | 'rubble' | 'urn' | 'bone_wall', x: number, y: number) {
     this.id = id;
@@ -31,9 +36,9 @@ export class Destructible {
       this.height = 42;
       this.hp = 1;
     } else if (type === 'bone_wall') {
-      this.width = 32;
-      this.height = 80;
-      this.hp = 3;
+      this.width = 46;
+      this.height = 36;
+      this.hp = 1;
     } else if (type === 'vase') {
       this.width = 20;
       this.height = 28;
@@ -65,16 +70,8 @@ export class Destructible {
       this.isDestroying = true;
       this.animTime = 0;
       
-      // Tabela de Probabilidade de Drop (Loot Table)
-      const roll = Math.random();
-      let dropType = null;
-      if (roll < 0.3) {
-          dropType = 'heart'; // 30% chance coração
-      } else if (roll < 0.6) {
-          dropType = 'purifying_salt'; // 30% chance sal
-      } else if (roll < 0.8) {
-          dropType = 'holy_water'; // 20% chance água benta
-      }
+      // Usa o novo sistema de loot (baseado no ItemDatabase)
+      let dropType = rollLoot();
 
       // Se rolou um item, joga ele no mundo!
       if (dropType) {
@@ -106,23 +103,46 @@ export class Destructible {
           });
         }
       } else if (this.type === 'bone_wall') {
-        for (let i = 0; i < 15; i++) {
-          const vx = (Math.random() - 0.5) * 200;
-          const vy = -Math.random() * 200 - 50;
+        if (!dropType) {
+           dropType = 'gota_essencia'; // always drop at least a drop if bad roll
+           spawnCollectible(dropType, this.x + this.width / 2, this.y + this.height / 2);
+        }
+        
+        // Shoot 1 skull
+        newParticles.push({
+          x: this.x + this.width / 2,
+          y: this.y + 5,
+          vx: (Math.random() - 0.5) * 150,
+          vy: -200 - Math.random() * 100,
+          color: '#E0E0E0',
+          size: 14,
+          life: 0,
+          maxLife: 1.5,
+          alpha: 1.0,
+          gravity: 800,
+          shape: 'skull' as ParticleShape,
+          rotation: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 8
+        });
+
+        // Shoot multiple bones
+        for (let i = 0; i < 8; i++) {
+          const vx = (Math.random() - 0.5) * 300;
+          const vy = -Math.random() * 250 - 100;
           newParticles.push({
             x: this.x + this.width / 2,
             y: this.y + Math.random() * this.height,
             vx: vx,
             vy: vy,
-            color: Math.random() > 0.5 ? '#E0E0E0' : GAME_CONFIG.PALETTE.PEN_PRIMARY,
-            size: Math.random() * 4 + 2,
+            color: '#F5F5DC',
+            size: Math.random() * 4 + 8,
             life: 0,
             maxLife: 1.0 + Math.random() * 0.5,
             alpha: 1.0,
             gravity: 800,
-            shape: 'pen_scratch' as ParticleShape,
+            shape: 'bone' as ParticleShape,
             rotation: Math.random() * Math.PI * 2,
-            vRot: (Math.random() - 0.5) * 10
+            vRot: (Math.random() - 0.5) * 15
           });
         }
       } else {
@@ -155,12 +175,74 @@ export class Destructible {
   }
 
 
-  public update(dt: number) {
+  public update(dt: number, platforms?: Rect[]) {
     if (this.isDestroying) {
       this.animTime += dt;
       if (this.animTime > 0.4) {
         this.isDestroyed = true;
         this.isDestroying = false;
+      }
+      return;
+    }
+
+    if (this.type === 'box') {
+      // Apply gravity
+      this.vy += 800 * dt;
+      this.vy = Math.min(this.vy, 400); // max fall speed
+      
+      // X Movement
+      this.x += this.vx * dt;
+      
+      if (platforms) {
+          for (const plat of platforms) {
+             // Basic collision check
+             if (this.x < plat.x + plat.width &&
+                 this.x + this.width > plat.x &&
+                 this.y < plat.y + plat.height &&
+                 this.y + this.height > plat.y) {
+                 
+                 if (this.vx > 0) {
+                     this.x = plat.x - this.width;
+                 } else if (this.vx < 0) {
+                     this.x = plat.x + plat.width;
+                 }
+                 this.vx = 0;
+             }
+          }
+      }
+
+      // Y Movement
+      this.y += this.vy * dt;
+      this.isGrounded = false;
+      
+      if (platforms) {
+          for (const plat of platforms) {
+             if (this.x < plat.x + plat.width &&
+                 this.x + this.width > plat.x &&
+                 this.y < plat.y + plat.height &&
+                 this.y + this.height > plat.y) {
+                 
+                 if (this.vy > 0) {
+                     this.y = plat.y - this.height;
+                     this.vy = 0;
+                     this.isGrounded = true;
+                 } else if (this.vy < 0) {
+                     this.y = plat.y + plat.height;
+                     this.vy = 0;
+                 }
+             }
+          }
+      }
+
+      // Friction
+      if (this.isGrounded) {
+         if (this.vx > 0) {
+             this.vx -= 400 * dt;
+             if (this.vx < 0) this.vx = 0;
+         } else if (this.vx < 0) {
+             this.vx += 400 * dt;
+             if (this.vx > 0) this.vx = 0;
+         }
       }
     }
   }

@@ -107,8 +107,15 @@ export class InventoryManager {
     const existing = this.items.find(i => i.id === item.id);
     if (existing && existing.count !== undefined) {
       existing.count = Math.min(existing.maxCount || 99, existing.count + (item.count || 1));
+      existing.isNew = true;
     } else {
-      this.items.push(item);
+      this.items.push({ ...item, isNew: true });
+    }
+  }
+
+  public clearNewItems() {
+    for (const item of this.items) {
+      item.isNew = false;
     }
   }
 

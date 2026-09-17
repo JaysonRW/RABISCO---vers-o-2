@@ -49,6 +49,8 @@ export const NpcDialogModal: React.FC<NpcDialogModalProps> = ({
     } else {
       avatarSrc = '/lordFala1.png';
     }
+  } else if (speaker === 'Frei Anselmo') {
+    avatarSrc = '/FreiAnselmo.png';
   }
 
   // Efeito de digitação (Typewriter)

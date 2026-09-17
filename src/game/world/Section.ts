@@ -303,8 +303,8 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'f_box_2', type: 'box', x: 210, y: 400 },
       { id: 'f_box_3', type: 'box', x: 800, y: 400 },
       { id: 'f_box_4', type: 'box', x: 1750, y: 400 },
-      { id: 'f_bone_1', type: 'bone_wall', x: 1400, y: 360 },
-      { id: 'f_bone_2', type: 'bone_wall', x: 2100, y: 360 },
+      { id: 'f_bone_1', type: 'bone_wall', x: 1400, y: 404 },
+      { id: 'f_bone_2', type: 'bone_wall', x: 2100, y: 404 },
     ],
     npcConfigs: [],
   },
@@ -384,9 +384,9 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'crypt_urn5', type: 'urn', x: 2050, y: 228 },
       { id: 'crypt_urn6', type: 'urn', x: 600, y: 398 }, // No chão
       { id: 'crypt_urn7', type: 'urn', x: 1600, y: 398 }, // No chão
-      { id: 'crypt_bone_1', type: 'bone_wall', x: 700, y: 360 }, 
-      { id: 'crypt_bone_2', type: 'bone_wall', x: 1720, y: 360 },
-      { id: 'crypt_bone_3', type: 'bone_wall', x: 2100, y: 360 },
+      { id: 'crypt_bone_1', type: 'bone_wall', x: 700, y: 404 }, 
+      { id: 'crypt_bone_2', type: 'bone_wall', x: 1720, y: 404 },
+      { id: 'crypt_bone_3', type: 'bone_wall', x: 2100, y: 404 },
     ],
     npcConfigs: [],
   },

@@ -1,3 +1,4 @@
+import { ItemDatabase } from '../inventory/ItemDatabase';
 /**
  * O Cavaleiro Arruinado - PenRenderer
  * Motor de Renderização Estilo Caneta Esferográfica sobre Papel Pergaminho
@@ -24,6 +25,7 @@ export class PenRenderer {
     this.loadPatioGround();
     this.loadPlatformImages();
     this.loadLordeCarmimImg();
+    this.loadFreiAnselmoImg();
     this.fogoSprites = [];
     (this as any).caixaSprites = [];
     if (typeof window !== "undefined") {
@@ -45,6 +47,16 @@ export class PenRenderer {
     img.src = '/lord1.png';
     img.onload = () => {
       this.lordeCarmimImg = img;
+    };
+  }
+
+  private freiAnselmoImg: HTMLImageElement | null = null;
+  private loadFreiAnselmoImg() {
+    if (typeof window === 'undefined') return;
+    const img = new Image();
+    img.src = '/freianselmocorpo.png';
+    img.onload = () => {
+      this.freiAnselmoImg = img;
     };
   }
 
@@ -621,8 +633,23 @@ export class PenRenderer {
   public renderCollectibles(ctx: CanvasRenderingContext2D, items: any[]) {
     ctx.save();
     for (const item of items) {
-      if (item.type === 'heart') {
-         // Coração desenhado
+      const dbItem = ItemDatabase[item.type];
+      
+      let visualType = 'flask';
+      if (dbItem) {
+          if (dbItem.category === 'consumable') visualType = 'heart';
+          else if (dbItem.category === 'ammunition') visualType = 'shard';
+          else if (dbItem.category === 'weapon') visualType = 'sword';
+          else if (dbItem.category === 'sub_weapon') visualType = 'flask';
+          else if (dbItem.category === 'buff') visualType = 'pouch';
+          else if (dbItem.category === 'special') visualType = 'hourglass';
+      } else {
+          // Fallback legacy
+          if (item.type === 'heart') visualType = 'heart';
+          else if (item.type === 'purifying_salt') visualType = 'pouch';
+      }
+
+      if (visualType === 'heart') {
          ctx.fillStyle = '#EF4444';
          ctx.beginPath();
          ctx.arc(item.x + 4, item.y + 4, 4, 0, Math.PI*2);
@@ -631,16 +658,46 @@ export class PenRenderer {
          ctx.fill();
          ctx.strokeStyle = '#7F1D1D';
          ctx.stroke();
-      } else if (item.type === 'purifying_salt') {
-         // Saquinho de sal
+      } else if (visualType === 'pouch') {
          ctx.fillStyle = '#E5E7EB';
          ctx.fillRect(item.x + 2, item.y + 4, 12, 12);
          ctx.strokeStyle = '#000000';
          ctx.strokeRect(item.x + 2, item.y + 4, 12, 12);
          ctx.fillStyle = '#6B7280';
          ctx.fillRect(item.x + 6, item.y + 8, 4, 4);
+      } else if (visualType === 'shard') {
+         ctx.fillStyle = '#111827';
+         ctx.beginPath();
+         ctx.moveTo(item.x + 8, item.y);
+         ctx.lineTo(item.x + 14, item.y + 8);
+         ctx.lineTo(item.x + 8, item.y + 16);
+         ctx.lineTo(item.x + 2, item.y + 8);
+         ctx.closePath();
+         ctx.fill();
+         ctx.strokeStyle = '#6B7280';
+         ctx.stroke();
+      } else if (visualType === 'sword') {
+         ctx.fillStyle = '#9CA3AF';
+         ctx.fillRect(item.x + 6, item.y, 4, 16);
+         ctx.fillStyle = '#4B5563';
+         ctx.fillRect(item.x + 2, item.y + 4, 12, 3);
+         ctx.strokeStyle = '#1F2937';
+         ctx.strokeRect(item.x + 6, item.y, 4, 16);
+      } else if (visualType === 'hourglass') {
+         ctx.fillStyle = '#D97706';
+         ctx.beginPath();
+         ctx.moveTo(item.x + 2, item.y);
+         ctx.lineTo(item.x + 14, item.y);
+         ctx.lineTo(item.x + 8, item.y + 8);
+         ctx.lineTo(item.x + 14, item.y + 16);
+         ctx.lineTo(item.x + 2, item.y + 16);
+         ctx.lineTo(item.x + 8, item.y + 8);
+         ctx.closePath();
+         ctx.fill();
+         ctx.strokeStyle = '#78350F';
+         ctx.stroke();
       } else {
-         // Frasco de água benta
+         // Flask
          ctx.fillStyle = '#3B82F6';
          ctx.beginPath();
          ctx.moveTo(item.x + 8, item.y);
@@ -1284,9 +1341,6 @@ export class PenRenderer {
     ctx.stroke();
 
     ctx.restore();
-
-    // 5. Barra de Vida do Fantasma (Estilo Caneta)
-    this.renderEnemyHealthBar(ctx, x, y - 16, w, hp, maxHp, 'ESPECTRO [IMUNE A FÍSICO]');
   }
 
   // Renderiza a Caveira Flutuante
@@ -1511,9 +1565,6 @@ export class PenRenderer {
     ctx.fill();
 
     ctx.restore();
-
-    // Barra de Vida
-    this.renderEnemyHealthBar(ctx, x, y - 14, w, hp, maxHp, 'CARNIÇAL [FRACO A FÍSICO]');
   }
 
   // Renderiza NPC (Monge Cego / Eremita do Sal nas Ruínas)
@@ -1597,18 +1648,6 @@ export class PenRenderer {
     ctx.stroke();
 
     ctx.restore();
-
-    // Health Bar
-    if (hp < maxHp) {
-      const barW = w;
-      const barH = 4;
-      const barX = x;
-      const barY = y - 10;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = GAME_CONFIG.PALETTE.FX_BLOOD_RED;
-      ctx.fillRect(barX, barY, barW * (hp / maxHp), barH);
-    }
   }
 
   public drawDestructible(ctx: CanvasRenderingContext2D, destructible: Destructible) {
@@ -1771,63 +1810,79 @@ export class PenRenderer {
       if (isDestroying) {
         progress = Math.min(1, animTime / 0.4);
       }
-
       ctx.strokeStyle = primary;
       ctx.fillStyle = '#F5F5DC'; // Osso velho
       
-      const drawBonePiece = (px, py, pw, ph, offX, offY, rot, alpha) => {
+      const drawSkull = (sx: number, sy: number, size: number, rot: number, alpha: number) => {
           ctx.save();
           ctx.globalAlpha = Math.max(0, alpha);
-          ctx.translate(px + pw/2 + offX, py + ph/2 + offY);
+          ctx.translate(sx, sy);
           ctx.rotate(rot);
           
-          ctx.fillRect(-pw/2, -ph/2, pw, ph);
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(-pw/2, -ph/2, pw, ph);
+          ctx.fillStyle = '#F5F5DC';
+          ctx.lineWidth = 1.2;
           
-          // Detalhe de osso (rachadura)
+          // Forma da caveira (meio círculo + mandíbula)
           ctx.beginPath();
-          ctx.moveTo(-pw/4, -ph/2);
-          ctx.lineTo(0, 0);
-          ctx.lineTo(pw/4, ph/3);
+          ctx.arc(0, -size*0.25, size, Math.PI, 0); // Topo
+          ctx.lineTo(size*0.7, size*0.8);        // Lado direito da mandíbula
+          ctx.lineTo(-size*0.7, size*0.8);       // Lado esquerdo da mandíbula
+          ctx.closePath();
+          ctx.fill();
           ctx.stroke();
+          
+          // Olhos (vazados)
+          ctx.fillStyle = primary;
+          ctx.beginPath();
+          ctx.arc(-size*0.4, -size*0.1, size*0.25, 0, Math.PI*2);
+          ctx.arc(size*0.4, -size*0.1, size*0.25, 0, Math.PI*2);
+          ctx.fill();
+          
+          // Nariz
+          ctx.beginPath();
+          ctx.moveTo(0, size*0.2);
+          ctx.lineTo(-size*0.15, size*0.4);
+          ctx.lineTo(size*0.15, size*0.4);
+          ctx.closePath();
+          ctx.fill();
           
           ctx.restore();
       };
+      
+      const centerX = x + width/2;
+      const bottomY = y + height;
+      const size = 9; // Tamanho das caveiras
 
       if (progress === 0) {
-         // Pilha intacta
-         ctx.fillRect(x, y, width, height);
+         // Pilha intacta de caveiras
+         // Base (3 caveiras)
+         drawSkull(centerX - 12, bottomY - size, size, -0.2, 1);
+         drawSkull(centerX + 12, bottomY - size, size, 0.3, 1);
+         drawSkull(centerX, bottomY - size + 2, size, -0.05, 1);
          
-         ctx.lineWidth = 2;
-         ctx.strokeRect(x, y, width, height);
+         // Meio (2 caveiras)
+         drawSkull(centerX - 7, bottomY - size*2.2, size, -0.1, 1);
+         drawSkull(centerX + 8, bottomY - size*2.4, size, 0.15, 1);
          
-         // Desenhar os ossos empilhados
-         ctx.lineWidth = 1.2;
-         const rows = 4;
-         for (let r = 0; r < rows; r++) {
-            const rowY = y + (r * (height / rows));
-            ctx.beginPath();
-            ctx.moveTo(x, rowY);
-            ctx.lineTo(x + width, rowY);
-            ctx.stroke();
-            
-            // X ou Caveira abstrata para textura
-            ctx.beginPath();
-            ctx.arc(x + width/2, rowY + (height / rows)/2, width*0.2, 0, Math.PI*2);
-            ctx.stroke();
-         }
-         
+         // Topo (1 caveira)
+         drawSkull(centerX, bottomY - size*3.6, size, -0.05, 1);
       } else {
-         // Animação de quebra da parede de ossos
+         // Animação de quebra da parede de ossos/caveiras
          const alpha = 1 - progress;
          const dist = progress * 35; 
          const rotMax = Math.PI / 2;
          
-         drawBonePiece(x, y, width, height/4, -dist, -dist - progress*15, -progress*rotMax, alpha);
-         drawBonePiece(x, y + height/4, width, height/4, dist, -dist*0.5, progress*rotMax, alpha);
-         drawBonePiece(x, y + height/2, width, height/4, -dist, dist*0.5, -progress*rotMax, alpha);
-         drawBonePiece(x, y + height*0.75, width, height/4, dist, dist, progress*rotMax, alpha);
+         // Base explodindo
+         drawSkull(centerX - 12 - dist, bottomY - size - dist*0.5, size, -0.2 - progress*rotMax, alpha);
+         drawSkull(centerX + 12 + dist, bottomY - size - dist*0.2, size, 0.3 + progress*rotMax, alpha);
+         drawSkull(centerX - dist*0.5, bottomY - size + 2 + dist, size, -0.05 - progress*rotMax, alpha);
+         
+         // Meio explodindo
+         drawSkull(centerX - 7 - dist*1.2, bottomY - size*2.2 - dist, size, -0.1 - progress*rotMax*1.5, alpha);
+         drawSkull(centerX + 8 + dist*0.8, bottomY - size*2.4 - dist*1.2, size, 0.15 + progress*rotMax*1.2, alpha);
+         
+         // Topo explodindo
+         drawSkull(centerX + dist*0.5, bottomY - size*3.6 - dist*1.5, size, -0.05 + progress*rotMax*2, alpha);
       }
       ctx.restore();
       return;
@@ -1939,6 +1994,57 @@ export class PenRenderer {
         );
       }
       
+      ctx.restore();
+      return;
+    }
+
+    // Custom drawing for Frei Anselmo
+    if (npcName === 'Frei Anselmo') {
+      const centerX = x + w / 2;
+      const bottomY = y + h;
+      ctx.translate(centerX, bottomY);
+      
+      const breathe = Math.sin(animTime * 2.5) * 2;
+      
+      if (this.freiAnselmoImg) {
+        // Scale to a height suitable for an NPC (e.g., 90px)
+        const drawH = 90;
+        const drawW = drawH * (this.freiAnselmoImg.width / this.freiAnselmoImg.height);
+        
+        ctx.drawImage(
+          this.freiAnselmoImg, 
+          -drawW / 2, 
+          -drawH + breathe, 
+          drawW, 
+          drawH
+        );
+      } else {
+        // Fallback drawing se imagem falhar
+        ctx.fillStyle = 'rgba(238, 230, 210, 0.95)';
+        ctx.strokeStyle = GAME_CONFIG.PALETTE.PEN_DARKEST;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-16, 0);
+        ctx.lineTo(-18, -42 + breathe);
+        ctx.quadraticCurveTo(0, -56 + breathe, 18, -42 + breathe);
+        ctx.lineTo(16, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      
+      // Indicador de Interação (Seta para Baixo)
+      if (isPlayerNearby) {
+        const floatOffset = Math.sin(animTime * 4) * 3;
+        ctx.fillStyle = GAME_CONFIG.PALETTE.FX_HOLY_GOLD;
+        ctx.beginPath();
+        ctx.moveTo(-6, -110 + floatOffset);
+        ctx.lineTo(6, -110 + floatOffset);
+        ctx.lineTo(0, -100 + floatOffset);
+        ctx.closePath();
+        ctx.fill();
+      }
+
       ctx.restore();
       return;
     }
@@ -2221,6 +2327,97 @@ export class PenRenderer {
         ctx.moveTo(p.x, p.y - p.size * 1.2);
         ctx.lineTo(p.x, p.y + p.size * 1.2);
         ctx.stroke();
+      } else if (p.shape === 'skull') {
+        // Caveira voando
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        if (p.rotation) ctx.rotate(p.rotation);
+        
+        ctx.fillStyle = p.color;
+        ctx.strokeStyle = GAME_CONFIG.PALETTE.PEN_PRIMARY;
+        ctx.lineWidth = 1.2;
+        
+        // Forma da caveira (meio círculo + mandíbula)
+        ctx.beginPath();
+        ctx.arc(0, -p.size/4, p.size, Math.PI, 0); // Topo
+        ctx.lineTo(p.size*0.7, p.size*0.8);        // Lado direito da mandíbula
+        ctx.lineTo(-p.size*0.7, p.size*0.8);       // Lado esquerdo da mandíbula
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Olhos (vazados)
+        ctx.fillStyle = GAME_CONFIG.PALETTE.PEN_PRIMARY;
+        ctx.beginPath();
+        ctx.arc(-p.size*0.4, -p.size*0.1, p.size*0.25, 0, Math.PI*2);
+        ctx.arc(p.size*0.4, -p.size*0.1, p.size*0.25, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Nariz
+        ctx.beginPath();
+        ctx.moveTo(0, p.size*0.2);
+        ctx.lineTo(-p.size*0.15, p.size*0.4);
+        ctx.lineTo(p.size*0.15, p.size*0.4);
+        ctx.fill();
+        
+        // Dentes
+        ctx.beginPath();
+        ctx.moveTo(-p.size*0.4, p.size*0.6);
+        ctx.lineTo(p.size*0.4, p.size*0.6);
+        ctx.moveTo(-p.size*0.2, p.size*0.6);
+        ctx.lineTo(-p.size*0.2, p.size*0.8);
+        ctx.moveTo(0, p.size*0.6);
+        ctx.lineTo(0, p.size*0.8);
+        ctx.moveTo(p.size*0.2, p.size*0.6);
+        ctx.lineTo(p.size*0.2, p.size*0.8);
+        ctx.stroke();
+        
+        ctx.restore();
+      } else if (p.shape === 'bone') {
+        // Osso voando
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        if (p.rotation) ctx.rotate(p.rotation);
+        
+        ctx.fillStyle = p.color;
+        ctx.strokeStyle = GAME_CONFIG.PALETTE.PEN_PRIMARY;
+        ctx.lineWidth = 1.2;
+        
+        // Corpo do osso
+        const w = p.size;
+        const h = p.size / 3;
+        
+        ctx.beginPath();
+        ctx.rect(-w, -h/2, w*2, h);
+        ctx.fill();
+        
+        // Pontas do osso
+        ctx.beginPath();
+        ctx.arc(-w, -h/2, h, 0, Math.PI*2);
+        ctx.arc(-w, h/2, h, 0, Math.PI*2);
+        ctx.arc(w, -h/2, h, 0, Math.PI*2);
+        ctx.arc(w, h/2, h, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Contornos
+        ctx.beginPath();
+        // Cima
+        ctx.moveTo(-w, -h/2);
+        ctx.lineTo(w, -h/2);
+        // Baixo
+        ctx.moveTo(-w, h/2);
+        ctx.lineTo(w, h/2);
+        ctx.stroke();
+        
+        // Curvas das pontas
+        ctx.beginPath();
+        ctx.arc(-w, -h/2, h, Math.PI/2, Math.PI*1.5);
+        ctx.arc(-w, h/2, h, Math.PI/2, Math.PI*1.5);
+        ctx.arc(w, -h/2, h, -Math.PI/2, Math.PI/2);
+        ctx.arc(w, h/2, h, -Math.PI/2, Math.PI/2);
+        ctx.stroke();
+        
+        ctx.restore();
       } else {
         // Ponto padrão
         ctx.fillStyle = p.color;
@@ -2456,6 +2653,95 @@ export class PenRenderer {
    * Renderiza a Barra de Progresso de 'Ascensão' no topo do Canvas
    * Estilo Manuscrito Gótico e Caneta Esferográfica com Ornamentos e Efeito de Almas
    */
+
+  // ==========================================
+  // MINI-MAP
+  // ==========================================
+  public renderMinimap(ctx: CanvasRenderingContext2D, sectionData: any, playerX: number, playerY: number) {
+    ctx.save();
+    
+    const minimapWidth = 180;
+    const minimapHeight = 100;
+    const padding = 15;
+    
+    // Position at top-right
+    const mapX = GAME_CONFIG.CANVAS_WIDTH - minimapWidth - 20;
+    const mapY = 20;
+    
+    const primary = GAME_CONFIG.PALETTE.PEN_PRIMARY;
+    const sec = GAME_CONFIG.PALETTE.PEN_SECONDARY;
+    
+    // Background (Parchment look)
+    ctx.fillStyle = 'rgba(235, 225, 210, 0.8)';
+    ctx.fillRect(mapX, mapY, minimapWidth, minimapHeight);
+    
+    // Hand-drawn border
+    ctx.strokeStyle = primary;
+    ctx.lineWidth = 1.5;
+    
+    // Double sketchy border
+    ctx.beginPath();
+    ctx.rect(mapX - 2, mapY - 2, minimapWidth + 4, minimapHeight + 4);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.rect(mapX + 2, mapY + 2, minimapWidth - 4, minimapHeight - 4);
+    ctx.stroke();
+    
+    // Level scaling
+    const levelW = sectionData.width || 2000;
+    const levelH = sectionData.height || GAME_CONFIG.CANVAS_HEIGHT;
+    
+    const usableW = minimapWidth - padding * 2;
+    const usableH = minimapHeight - padding * 2;
+    
+    const scaleX = usableW / levelW;
+    const scaleY = usableH / levelH;
+    
+    const offsetX = mapX + padding;
+    const offsetY = mapY + padding;
+    
+    // Draw Platforms
+    ctx.fillStyle = 'rgba(28, 38, 59, 0.4)'; // Faded ink for terrain
+    if (sectionData.platforms) {
+      for (const plat of sectionData.platforms) {
+        const px = offsetX + plat.x * scaleX;
+        const py = offsetY + plat.y * scaleY;
+        const pw = plat.width * scaleX;
+        const ph = plat.height * scaleY;
+        
+        ctx.fillRect(px, py, pw, ph);
+      }
+    }
+    
+    // Draw Player
+    const playerPx = offsetX + playerX * scaleX;
+    const playerPy = offsetY + playerY * scaleY;
+    
+    ctx.fillStyle = GAME_CONFIG.PALETTE.FX_BLOOD_RED || '#B91C1C';
+    ctx.beginPath();
+    ctx.arc(playerPx, playerPy - 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Subtle cross for player
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(playerPx - 2, playerPy - 2);
+    ctx.lineTo(playerPx + 2, playerPy - 2);
+    ctx.moveTo(playerPx, playerPy - 4);
+    ctx.lineTo(playerPx, playerPy);
+    ctx.stroke();
+    
+    // Title
+    ctx.fillStyle = primary;
+    ctx.font = '12px Cinzel';
+    ctx.textAlign = 'center';
+    ctx.fillText("MAPA", mapX + minimapWidth / 2, mapY + minimapHeight - 4);
+    
+    ctx.restore();
+  }
+
   public renderPlayerHUD(ctx: CanvasRenderingContext2D, hp: number, maxHp: number, stamina: number, maxStamina: number, mp: number, maxMp: number, stats: AscensionStats, animTime: number) {
     ctx.save();
     const barW = 320;
@@ -2598,7 +2884,7 @@ export class PenRenderer {
     ctx.restore();
   }
   // Pós-processamento de vinheta e textura granulada de papel
-  public renderPostProcessing(ctx: CanvasRenderingContext2D) {
+  public renderPostProcessing(ctx: CanvasRenderingContext2D, playerScreenX?: number, playerScreenY?: number) {
     const w = GAME_CONFIG.CANVAS_WIDTH;
     const h = GAME_CONFIG.CANVAS_HEIGHT;
 
@@ -2614,12 +2900,17 @@ export class PenRenderer {
     }
 
     // 2. Vinheta escura sutil nas bordas (efeito papel antigo envelhecido)
+    const centerX = playerScreenX !== undefined ? playerScreenX : w / 2;
+    const centerY = playerScreenY !== undefined ? playerScreenY : h / 2;
+
     const vignette = ctx.createRadialGradient(
-      w / 2, h / 2, Math.min(w, h) * 0.45,
-      w / 2, h / 2, Math.max(w, h) * 0.72
+      centerX, centerY, Math.min(w, h) * 0.35,
+      centerX, centerY, Math.max(w, h) * 0.85
     );
-    vignette.addColorStop(0, 'rgba(10, 37, 112, 0)');
-    vignette.addColorStop(1, 'rgba(15, 30, 75, 0.22)');
+    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignette.addColorStop(0.6, 'rgba(5, 10, 25, 0.4)');
+    vignette.addColorStop(1, 'rgba(0, 2, 10, 0.85)');
+
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, w, h);
 

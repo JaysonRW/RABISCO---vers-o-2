@@ -1,3 +1,4 @@
+import { ItemDatabase } from "./inventory/ItemDatabase";
 /**
  * O Cavaleiro Arruinado - Game Engine Core
  * Loop Principal, Câmera, Física, Partículas e Resolução de Combate
@@ -36,6 +37,9 @@ export interface GameEngineCallbacks {
     maxMp: number;
     ascension: AscensionStats;
     inventory?: any[];
+    killCounts?: Record<string, number>;
+    learnedSpells?: Record<string, boolean>;
+    comboCount?: number;
     currentSection?: {
       id: string;
       name: string;
@@ -56,14 +60,22 @@ export class GameEngine {
   public destructibles: Destructible[] = [];
   public collectibles: Collectible[] = [];
   public activeNpcNearby: NPC | null = null;
+  public screenShakeTimer: number = 0;
+  public damageFlashTimer: number = 0;
   public level: Level;
   public inventory: InventoryManager;
   public sectionManager: SectionManager;
+
+  // Sistema de Combo
+  public comboCount: number = 0;
+  public comboTimer: number = 0;
 
   // Sistema de Almas & Ascensão Espiritual
   public soulOrbs: SoulOrb[] = [];
   private nextSoulId: number = 1;
   public totalSoulsCollected: number = 0;
+  public killCounts: Record<string, number> = {};
+  public learnedSpells: Record<string, boolean> = {};
   public ascensionLevel: number = 0;
   public ascensionSoulsCurrentLevel: number = 0;
   public ascensionSoulsNeeded: number = GAME_CONFIG.ASCENSION.SOULS_BASE_REQ;
@@ -491,6 +503,16 @@ export class GameEngine {
   };
 
   private update(dt: number) {
+    if (this.screenShakeTimer > 0) this.screenShakeTimer -= dt;
+    if (this.damageFlashTimer > 0) this.damageFlashTimer -= dt;
+    // Atualiza Combo Timer
+    if (this.comboCount > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) {
+        this.comboCount = 0;
+      }
+    }
+
     // 0. Atualiza Gerenciador de Seções e Transições do Mapa
     this.sectionManager.update(dt, this.player);
     if (this.sectionManager.isTransitioning) {
@@ -512,10 +534,22 @@ export class GameEngine {
       }
     }
 
+
+    // Gather dynamic platforms (boxes)
+    const dynamicPlatforms = this.destructibles
+        .filter(d => d.type === 'box' && !d.isDestroyed)
+        .map(d => {
+            const b = d.getBounds();
+            (b as any).isPushable = true;
+            (b as any).ref = d;
+            return b;
+        });
+    const allPlatforms = [...this.level.platforms, ...dynamicPlatforms];
+
     this.player.update(
       dt,
       activeInput,
-      this.level.platforms,
+      allPlatforms,
       this.inventory.hasSaltCoating,
       () => this.triggerUseSalt()
     );
@@ -528,6 +562,7 @@ export class GameEngine {
       const mpCost = Math.round(baseMpCost * (1 + (this.ascensionLevel * 0.2)));
       
       if (this.player.mp >= mpCost) {
+        this.learnedSpells['fireball'] = true;
         this.player.mp -= mpCost;
         
         // Spawn Fireball
@@ -558,6 +593,7 @@ export class GameEngine {
       const mpCost = Math.round(baseMpCost * (1 + (this.ascensionLevel * 0.2)));
       
       if (this.player.mp >= mpCost && this.player.hp < this.player.maxHp) {
+        this.learnedSpells['heal'] = true;
         this.player.mp -= mpCost;
         
         const baseHeal = 25;
@@ -602,6 +638,7 @@ export class GameEngine {
       const mpCost = Math.round(baseMpCost * (1 + (this.ascensionLevel * 0.2)));
       
       if (this.player.mp >= mpCost) {
+        this.learnedSpells['aoe'] = true;
         this.player.mp -= mpCost;
         
         const baseDamage = 45;
@@ -662,6 +699,8 @@ export class GameEngine {
                       knockback: { x: knockDirX * 350, y: -200 },
                       sourcePosition: { x: pX, y: pY }
                     });
+                    this.comboCount++;
+                    this.comboTimer = 3.0;
                     this.addFloatingText(eX, eY, damage.toString(), '#8B5CF6', 1.5);
                 }
             }
@@ -690,6 +729,8 @@ export class GameEngine {
               knockback: { x: fb.facing * 150, y: -100 },
               sourcePosition: { x: fb.x, y: fb.y }
             });
+            this.comboCount++;
+            this.comboTimer = 3.0;
             this.addFloatingText(fb.x, fb.y, fb.damage.toString(), '#FF5500', 1.5);
             
             // Explosão de fogo
@@ -805,7 +846,9 @@ export class GameEngine {
         if (this.checkOverlap(pBounds, eBounds)) {
           if (!this.player.isInvulnerable) {
             this.player.takeDamage(enemy.damage, enemy.x + enemy.width / 2);
+            this.comboCount = 0; // Reset combo on taking damage
             this.triggerScreenShake(0.18, 5);
+            this.damageFlashTimer = 0.2;
             this.addFloatingText(
               this.player.x + this.player.width / 2,
               this.player.y - 10,
@@ -822,6 +865,8 @@ export class GameEngine {
           }
         }
       } else {
+        // Increment kill count
+        this.killCounts[enemy.type] = (this.killCounts[enemy.type] || 0) + 1;
         // Remove inimigo morto do array
         this.enemies.splice(i, 1);
       }
@@ -955,7 +1000,7 @@ export class GameEngine {
     // Atualiza Destructibles
     for (const dest of this.destructibles) {
       if (typeof (dest as any).update === 'function') {
-        (dest as any).update(dt);
+        (dest as any).update(dt, this.level.platforms);
       }
     }
 
@@ -989,23 +1034,56 @@ export class GameEngine {
           item.vx = 0;
       }
 
+
       // Checa colisão entre o Nankin e o Item
       const iBounds = {x: item.x, y: item.y, width: item.width, height: item.height};
       if (this.checkOverlap(this.player.getBounds(), iBounds)) {
           item.isCollected = true;
           
-          if (item.type === 'heart') {
-              const heal = 25;
-              this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
-              this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+25 HP", "#10B981");
-              this.player.healingAuraTimer = 0.5;
-          } else if (item.type === 'purifying_salt') {
-              this.inventory.addItem({ id: item.type, name: 'Sal Purificador', description: 'Básico', type: 'COATING', icon: 'salt', count: 1 });
-              this.inventory.addSalt(1);
-              this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+1 Sal", "#3B82F6");
-          } else if (item.type === 'holy_water') {
-              this.inventory.addItem({ id: item.type, name: 'Água Benta', description: 'Básico', type: 'CONSUMABLE', icon: 'flask', count: 1 });
-              this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+1 Água Benta", "#3B82F6");
+          const dbItem = ItemDatabase[item.type];
+          
+          if (dbItem) {
+              if (dbItem.category === 'consumable' && dbItem.type === 'healing') {
+                  const heal = dbItem.stats?.healAmount || 10;
+                  this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
+                  this.addFloatingText(this.player.x + this.player.width/2, this.player.y, `+${heal} HP`, "#10B981");
+                  this.player.healingAuraTimer = 0.5;
+              } else if (dbItem.category === 'ammunition' && dbItem.type === 'resource') {
+                  const mpRecover = dbItem.stats?.mpAmount || 5;
+                  this.player.mp = Math.min(this.player.maxMp, this.player.mp + mpRecover);
+                  this.addFloatingText(this.player.x + this.player.width/2, this.player.y, `+${mpRecover} MP`, "#8B5CF6");
+              } else {
+                  // Put in inventory
+                  let iconStr = 'flask';
+                  if (dbItem.category === 'weapon') iconStr = 'sword';
+                  else if (dbItem.category === 'buff') iconStr = 'cross';
+                  else if (dbItem.category === 'sub_weapon') iconStr = 'stake'; // We don't have stake icon natively in HUD yet but it defaults
+                  
+                  this.inventory.addItem({ 
+                      id: item.type, 
+                      name: dbItem.name, 
+                      description: dbItem.description, 
+                      type: dbItem.category.toUpperCase(), 
+                      icon: iconStr as any, 
+                      count: 1 
+                  });
+                  this.addFloatingText(this.player.x + this.player.width/2, this.player.y, `+1 ${dbItem.name}`, "#F59E0B");
+              }
+          } else {
+              // Fallbacks antigos
+              if (item.type === 'heart') {
+                  const heal = 25;
+                  this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
+                  this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+25 HP", "#10B981");
+                  this.player.healingAuraTimer = 0.5;
+              } else if (item.type === 'purifying_salt') {
+                  this.inventory.addItem({ id: item.type, name: 'Sal Purificador', description: 'Básico', type: 'COATING', icon: 'salt', count: 1 });
+                  this.inventory.addSalt(1);
+                  this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+1 Sal", "#3B82F6");
+              } else if (item.type === 'holy_water') {
+                  this.inventory.addItem({ id: item.type, name: 'Água Benta', description: 'Básico', type: 'CONSUMABLE', icon: 'flask', count: 1 });
+                  this.addFloatingText(this.player.x + this.player.width/2, this.player.y, "+1 Água Benta", "#3B82F6");
+              }
           }
       }
     }
@@ -1049,6 +1127,9 @@ export class GameEngine {
       maxMp: this.player.maxMp,
       ascension: this.getAscensionStats(),
       inventory: this.inventory.items,
+      killCounts: this.killCounts,
+      learnedSpells: this.learnedSpells,
+      comboCount: this.comboCount,
       currentSection: {
         id: this.sectionManager.currentSectionId,
         name: this.sectionManager.currentSection.name,
@@ -1100,12 +1181,18 @@ export class GameEngine {
         if (dmgResult.isImmune) {
           if ((soundManager as any).playImmuneClank) (soundManager as any).playImmuneClank();
           this.addFloatingText(hitX, hitY - 20, "IMUNE", '#9CA3AF');
-        } else if (dmgResult.isWeakness) {
-          if ((soundManager as any).playGhostHurt) (soundManager as any).playGhostHurt();
-          this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FBBF24', 1.5);
         } else {
-          if ((soundManager as any).playHitImpact) (soundManager as any).playHitImpact();
-          this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FFFFFF', 1.0);
+          // Incrementa combo apenas se causar dano
+          this.comboCount++;
+          this.comboTimer = 3.0; // 3 segundos para continuar o combo
+          
+          if (dmgResult.isWeakness) {
+            if ((soundManager as any).playGhostHurt) (soundManager as any).playGhostHurt();
+            this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FBBF24', 1.5);
+          } else {
+            if ((soundManager as any).playHitImpact) (soundManager as any).playHitImpact();
+            this.addFloatingText(hitX, hitY - 20, dmgResult.dealt.toString(), '#FFFFFF', 1.0);
+          }
         }
 
         if (dmgResult.defeated) {
@@ -1369,6 +1456,9 @@ export class GameEngine {
     // 8. HUD Completo (Vida, Estamina, Magia, Ascensão)
     this.renderer.renderPlayerHUD(ctx, this.player.hp, this.player.maxHp, this.player.stamina, this.player.maxStamina, this.player.mp, this.player.maxMp, this.getAscensionStats(), this.player.animTime);
 
+    // 8.5 Mini-map
+    this.renderer.renderMinimap(ctx, this.sectionManager.currentSection, this.player.x, this.player.y);
+
     // 8a. Banner Ilustrado da Seção (Ao entrar em nova área)
     this.renderer.renderSectionTitleBanner(
       ctx,
@@ -1385,10 +1475,21 @@ export class GameEngine {
       ctx.restore();
     }
 
+    // 9.1 Flash Vermelho de Dano (Quando o jogador recebe dano)
+    if (this.damageFlashTimer > 0) {
+      ctx.save();
+      ctx.fillStyle = `rgba(185, 28, 28, ${this.damageFlashTimer * 2.0})`; // Vermelho sangue (FX_BLOOD_RED)
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+
     // 9b. Dissolução de Tinta / Transição de Tela entre Seções
     this.renderer.renderScreenTransition(ctx, this.sectionManager.transitionAlpha);
 
     // 10. Pós-processamento: Ruído de papel, vinheta de pergaminho antigo e moldura de caderno
-    this.renderer.renderPostProcessing(ctx);
+    // Reage à posição do jogador para atmosfera Dark Fantasy
+    const playerScreenX = this.player.x + this.player.width / 2 - this.cameraX;
+    const playerScreenY = this.player.y + this.player.height / 2 - this.cameraY;
+    this.renderer.renderPostProcessing(ctx, playerScreenX, playerScreenY);
   }
 }

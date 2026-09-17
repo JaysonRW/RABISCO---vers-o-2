@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+@theme {
+  --animate-unroll: unroll 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  
+  @keyframes unroll {
+    0% {
+      opacity: 0;
+      transform: scaleY(0);
+      transform-origin: top;
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      margin-bottom: 0;
+      border-width: 0;
+    }
+    100% {
+      opacity: 1;
+      transform: scaleY(1);
+      transform-origin: top;
+      max-height: 200px;
+    }
+  }
+}

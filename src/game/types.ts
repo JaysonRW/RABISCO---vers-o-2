@@ -65,12 +65,13 @@ export interface Item {
   id: string;
   name: string;
   description: string;
-  type: 'WEAPON' | 'COATING' | 'RELIC' | 'CONSUMABLE';
+  type: 'WEAPON' | 'COATING' | 'RELIC' | 'CONSUMABLE' | string;
   damageType?: DamageType;
   icon: string;
   count?: number;
   maxCount?: number;
   isPassive?: boolean;
+  isNew?: boolean;
 }
 
 export type ParticleShape =
@@ -82,7 +83,9 @@ export type ParticleShape =
   | 'ink_slash'
   | 'pen_scratch'
   | 'ink_blot'
-  | 'ZOMBIE_HEAD';
+  | 'ZOMBIE_HEAD'
+  | 'bone'
+  | 'skull';
 
 export interface Particle {
   x: number;
