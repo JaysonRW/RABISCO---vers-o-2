@@ -3,6 +3,8 @@
  * Síntese procedural de áudio via Web Audio API (sem assets externos)
  */
 
+import fireballSoundUrl from '../../sounds/som_flames.mp3';
+
 class SoundManager {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
@@ -252,6 +254,13 @@ class SoundManager {
 
     osc.start(now);
     osc.stop(now + 0.2);
+  }
+
+  public playFireballSound() {
+    if (!this.enabled || typeof window === 'undefined') return;
+    const audio = new Audio(fireballSoundUrl);
+    audio.volume = 0.6;
+    audio.play().catch(e => console.warn('Fireball sound play blocked:', e));
   }
 
   public playHitImpact() {

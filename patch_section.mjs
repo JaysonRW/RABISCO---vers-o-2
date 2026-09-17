@@ -1,28 +1,22 @@
 import fs from 'fs';
 let code = fs.readFileSync('src/game/world/Section.ts', 'utf8');
 
-const oldSanctuary = `  sanctuary_interior: {
-    id: 'sanctuary_interior',
-    name: 'Santuário Carmim',
-    subtitle: 'O Núcleo da Corrupção',
-    theme: 'CRIMSON_SANCTUARY',
-    width: 800,
-    height: 540,
-    platforms: [
-      { x: 0, y: 460, width: 800, height: 80, type: 'GROUND' },
-      { x: 280, y: 180, width: 240, height: 24, type: 'FLOATING' } // Altar for Lorde Carmim
-    ],`;
+const oldCode = `      { id: 'z10', type: 'ZOMBIE', x: 2350, y: 388, patrolMinX: 1900, patrolMaxX: 2480 },
+    ],
+    npcConfigs: [],`;
 
-const newSanctuary = `  sanctuary_interior: {
-    id: 'sanctuary_interior',
-    name: 'Santuário Carmim',
-    subtitle: 'O Núcleo da Corrupção',
-    theme: 'CRIMSON_SANCTUARY',
-    width: 960,
-    height: 540,
-    platforms: [
-      { x: 0, y: 460, width: 960, height: 80, type: 'GROUND' }
-    ],`;
+const newCode = `      { id: 'z10', type: 'ZOMBIE', x: 2350, y: 388, patrolMinX: 1900, patrolMaxX: 2480 },
+    ],
+    destructibles: [
+      { id: 'crypt_urn1', type: 'urn', x: 280, y: 298 },
+      { id: 'crypt_urn2', type: 'urn', x: 500, y: 208 },
+      { id: 'crypt_urn3', type: 'urn', x: 1020, y: 268 },
+      { id: 'crypt_urn4', type: 'urn', x: 1250, y: 178 },
+      { id: 'crypt_urn5', type: 'urn', x: 2050, y: 228 },
+      { id: 'crypt_urn6', type: 'urn', x: 600, y: 398 }, // No chão
+      { id: 'crypt_urn7', type: 'urn', x: 1600, y: 398 }, // No chão
+    ],
+    npcConfigs: [],`;
 
-code = code.replace(oldSanctuary, newSanctuary);
+code = code.replace(oldCode, newCode);
 fs.writeFileSync('src/game/world/Section.ts', code);

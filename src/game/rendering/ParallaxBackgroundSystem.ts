@@ -14,6 +14,7 @@
 
 import { GAME_CONFIG } from '../config';
 import { BiomeTheme } from '../world/Section';
+import { AssetLoader } from '../utils/AssetLoader';
 
 interface AtmosphericParticle {
   x: number;
@@ -58,6 +59,16 @@ export class ParallaxBackgroundSystem {
     this.loadCourtyardImage();
     this.loadSanctuaryImage();
     this.loadFireFrames();
+    if (typeof window !== 'undefined') {
+      AssetLoader.loadImage('/fundo1Cripta.png').catch(() => {});
+      AssetLoader.loadImage('/pilarcripta.png').catch(() => {});
+      AssetLoader.loadImage('/bmg_floresta1.png').catch(() => {});
+      AssetLoader.loadImage('/bgm_floresta2.png').catch(() => {});
+      AssetLoader.loadImage('/bgm_floresta3.png').catch(() => {});
+      AssetLoader.loadImage('/bmg_cripta1.png').catch(() => {});
+      AssetLoader.loadImage('/bmg_cripta2.png').catch(() => {});
+      AssetLoader.loadImage('/bmg_cripta3.png').catch(() => {});
+    }
   }
 
   private loadCourtyardImage() {
@@ -1210,50 +1221,128 @@ export class ParallaxBackgroundSystem {
   // Renderiza Parallax da Floresta Corrompida
   private renderForestBiome(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number) {
     const w = GAME_CONFIG.CANVAS_WIDTH;
-    if (this.forestDistantBuffer) {
-      const factor = 0.14;
-      const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
-      ctx.drawImage(this.forestDistantBuffer, -offset, 0);
-      ctx.drawImage(this.forestDistantBuffer, -offset + this.loopWidth, 0);
-      if (-offset + this.loopWidth < w) {
-        ctx.drawImage(this.forestDistantBuffer, -offset + this.loopWidth * 2, 0);
-      }
-    }
+    const h = GAME_CONFIG.CANVAS_HEIGHT;
 
-    if (this.forestMidBuffer) {
-      const factor = 0.28;
-      const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
-      ctx.drawImage(this.forestMidBuffer, -offset, 0);
-      ctx.drawImage(this.forestMidBuffer, -offset + this.loopWidth, 0);
-      if (-offset + this.loopWidth < w) {
-        ctx.drawImage(this.forestMidBuffer, -offset + this.loopWidth * 2, 0);
+    const bg1 = AssetLoader.getImage('/bmg_floresta1.png');
+    const bg2 = AssetLoader.getImage('/bgm_floresta2.png');
+    const bg3 = AssetLoader.getImage('/bgm_floresta3.png');
+
+    if (bg1 || bg2 || bg3) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      
+      const drawLayer = (img: HTMLImageElement, factor: number) => {
+        if (!img) return;
+        const imgW = img.width || this.loopWidth;
+        const imgH = img.height || this.loopHeight;
+        const scaleY = h / imgH;
+        const scaledW = imgW * scaleY;
+        const scaledOffset = ((cameraX * factor) % scaledW + scaledW) % scaledW;
+
+        ctx.drawImage(img, -scaledOffset, 0, scaledW, h);
+        ctx.drawImage(img, -scaledOffset + scaledW, 0, scaledW, h);
+        if (-scaledOffset + scaledW < w) {
+          ctx.drawImage(img, -scaledOffset + scaledW * 2, 0, scaledW, h);
+        }
+      };
+
+      // Camada 1: Mais profunda (bmg_floresta1)
+      drawLayer(bg1!, 0.08);
+      
+      // Camada 2: Frente à distante (bgm_floresta2)
+      drawLayer(bg2!, 0.18);
+      
+      // Camada 3: Última, grandes árvores (bgm_floresta3)
+      drawLayer(bg3!, 0.32);
+
+      ctx.restore();
+    } else {
+      if (this.forestDistantBuffer) {
+        const factor = 0.14;
+        const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
+        ctx.drawImage(this.forestDistantBuffer, -offset, 0);
+        ctx.drawImage(this.forestDistantBuffer, -offset + this.loopWidth, 0);
+        if (-offset + this.loopWidth < w) {
+          ctx.drawImage(this.forestDistantBuffer, -offset + this.loopWidth * 2, 0);
+        }
+      }
+
+      if (this.forestMidBuffer) {
+        const factor = 0.28;
+        const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
+        ctx.drawImage(this.forestMidBuffer, -offset, 0);
+        ctx.drawImage(this.forestMidBuffer, -offset + this.loopWidth, 0);
+        if (-offset + this.loopWidth < w) {
+          ctx.drawImage(this.forestMidBuffer, -offset + this.loopWidth * 2, 0);
+        }
       }
     }
   }
+
 
   // Renderiza Parallax da Cripta Esquecida
   private renderCryptBiome(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number) {
     const w = GAME_CONFIG.CANVAS_WIDTH;
-    if (this.cryptVaultsBuffer) {
-      const factor = 0.16;
-      const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
-      ctx.drawImage(this.cryptVaultsBuffer, -offset, 0);
-      ctx.drawImage(this.cryptVaultsBuffer, -offset + this.loopWidth, 0);
-      if (-offset + this.loopWidth < w) {
-        ctx.drawImage(this.cryptVaultsBuffer, -offset + this.loopWidth * 2, 0);
-      }
-    }
+    const h = GAME_CONFIG.CANVAS_HEIGHT;
 
-    if (this.cryptPillarsBuffer) {
-      const factor = 0.32;
-      const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
-      ctx.drawImage(this.cryptPillarsBuffer, -offset, 0);
-      ctx.drawImage(this.cryptPillarsBuffer, -offset + this.loopWidth, 0);
-      if (-offset + this.loopWidth < w) {
-        ctx.drawImage(this.cryptPillarsBuffer, -offset + this.loopWidth * 2, 0);
+    const bg1 = AssetLoader.getImage('/bmg_cripta1.png');
+    const bg2 = AssetLoader.getImage('/bmg_cripta2.png');
+    const bg3 = AssetLoader.getImage('/bmg_cripta3.png');
+
+    if (bg1 || bg2 || bg3) {
+      ctx.save();
+      // Removido multiply para as novas camadas não terem transparência
+      ctx.globalCompositeOperation = 'source-over'; 
+      
+      const drawLayer = (img: HTMLImageElement, factor: number) => {
+        if (!img) return;
+        const imgW = img.width || this.loopWidth;
+        const imgH = img.height || this.loopHeight;
+        const scaleY = h / imgH;
+        const scaledW = imgW * scaleY;
+        const scaledOffset = ((cameraX * factor) % scaledW + scaledW) % scaledW;
+
+        ctx.drawImage(img, -scaledOffset, 0, scaledW, h);
+        ctx.drawImage(img, -scaledOffset + scaledW, 0, scaledW, h);
+        if (-scaledOffset + scaledW < w) {
+          ctx.drawImage(img, -scaledOffset + scaledW * 2, 0, scaledW, h);
+        }
+      };
+
+      // Camada 1: Mais profunda (bmg_cripta1)
+      drawLayer(bg1!, 0.08);
+      
+      // Camada 2: Frente à distante (bmg_cripta2)
+      drawLayer(bg2!, 0.18);
+      
+      // Camada 3: Última, grandes árvores/pilares (bmg_cripta3)
+      drawLayer(bg3!, 0.32);
+
+      ctx.restore();
+    } else {
+      // Fallback para os buffers antigos
+      if (this.cryptVaultsBuffer) {
+        const factor = 0.16;
+        const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
+        ctx.drawImage(this.cryptVaultsBuffer, -offset, 0);
+        ctx.drawImage(this.cryptVaultsBuffer, -offset + this.loopWidth, 0);
+        if (-offset + this.loopWidth < w) {
+          ctx.drawImage(this.cryptVaultsBuffer, -offset + this.loopWidth * 2, 0);
+        }
+      }
+
+      if (this.cryptPillarsBuffer) {
+        const factor = 0.32;
+        const offset = ((cameraX * factor) % this.loopWidth + this.loopWidth) % this.loopWidth;
+        ctx.drawImage(this.cryptPillarsBuffer, -offset, 0);
+        ctx.drawImage(this.cryptPillarsBuffer, -offset + this.loopWidth, 0);
+        if (-offset + this.loopWidth < w) {
+          ctx.drawImage(this.cryptPillarsBuffer, -offset + this.loopWidth * 2, 0);
+        }
       }
     }
   }
+
 
   // Névoa Rasteira Dinâmica (VFX Móvel - Prancha 04)
   private renderLowGroundMist(ctx: CanvasRenderingContext2D, cameraX: number) {

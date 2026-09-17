@@ -21,4 +21,8 @@ const newConstructor = `    if (typeof window !== 'undefined') {
     }`;
 
 code = code.replace(oldConstructor, newConstructor);
-fs.writeFileSync('src/game/rendering/ParallaxBackgroundSystem.ts', code);
+
+const oldCryptRenderCodeStart = `  private renderCryptBiome(ctx: CanvasRenderingContext2D, cameraX: number, cameraY: number) {`;
+
+// Let's replace the whole method. We need to find where it ends.
+// Wait, I can just use a regex.

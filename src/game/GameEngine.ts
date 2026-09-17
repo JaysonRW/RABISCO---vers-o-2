@@ -536,6 +536,11 @@ export class GameEngine {
         
         this.fireballs.push(new Fireball(fbX, fbY, this.player.facing, damage));
         
+        // Toca o som do disparo da magia de fogo
+        if ((soundManager as any).playFireballSound) {
+          (soundManager as any).playFireballSound();
+        }
+        
         // Trigger attack animation
         this.player.state = 'ATTACK' as any;
         this.player.attackTimer = 0.3; // force animation
@@ -641,7 +646,7 @@ export class GameEngine {
         
         // Bate em inimigos próximos
         for (const enemy of this.enemies) {
-            if (!enemy.isAlive) {
+            if (enemy.isAlive) {
                 const eX = enemy.x + enemy.width / 2;
                 const eY = enemy.y + enemy.height / 2;
                 const dist = Math.sqrt(Math.pow(eX - pX, 2) + Math.pow(eY - pY, 2));
@@ -671,7 +676,7 @@ export class GameEngine {
       let hit = false;
       
       for (const enemy of this.enemies) {
-        if (!enemy.isAlive) {
+        if (enemy.isAlive) {
           const eBounds = enemy.getBounds();
           if (this.checkOverlap(fbBounds, eBounds)) {
             hit = true;

@@ -53,10 +53,10 @@ export class ZombieEnemy extends Enemy {
     if (distToPlayer < 400 && verticalDist < 120) {
       const dir = playerCenterX > zombieCenterX ? 1 : -1;
       this.facing = dir === 1 ? Direction.RIGHT : Direction.LEFT;
-      this.vx = dir * 85;
+      this.vx = dir * 30;
     } else {
       // Patrulha padrão no solo
-      this.x += this.patrolDirection * 35 * dt;
+      this.x += this.patrolDirection * 15 * dt;
       this.facing = this.patrolDirection === 1 ? Direction.RIGHT : Direction.LEFT;
       
       // Muda de direção aleatoriamente ou em buracos (simulado)

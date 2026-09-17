@@ -1,12 +1,18 @@
 import fs from 'fs';
-
 let code = fs.readFileSync('src/game/GameEngine.ts', 'utf8');
 
-const oldCall = `    // 8. Barra de Progresso de Ascensão no Topo da Tela (Coordenadas de Tela)
-    this.renderer.renderInGameAscensionBar(ctx, this.getAscensionStats(), this.player.animTime);`;
+const oldCode = `        this.fireballs.push(new Fireball(fbX, fbY, this.player.facing, damage));
+        
+        // Trigger attack animation`;
 
-const newCall = `    // 8. HUD Completo (Vida, Estamina, Ascensão)
-    this.renderer.renderPlayerHUD(ctx, this.player.hp, this.player.maxHp, this.player.stamina, this.player.maxStamina, this.getAscensionStats(), this.player.animTime);`;
+const newCode = `        this.fireballs.push(new Fireball(fbX, fbY, this.player.facing, damage));
+        
+        // Toca o som do disparo da magia de fogo
+        if ((soundManager as any).playFireballSound) {
+          (soundManager as any).playFireballSound();
+        }
+        
+        // Trigger attack animation`;
 
-code = code.replace(oldCall, newCall);
+code = code.replace(oldCode, newCode);
 fs.writeFileSync('src/game/GameEngine.ts', code);
