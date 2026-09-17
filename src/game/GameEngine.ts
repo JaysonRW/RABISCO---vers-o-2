@@ -10,6 +10,7 @@ import { Enemy } from './entities/Enemy';
 import { GhostEnemy } from './entities/GhostEnemy';
 import { ZombieEnemy } from './entities/ZombieEnemy';
 import { GhoulEnemy } from './entities/GhoulEnemy';
+import { SkullEnemy } from './entities/SkullEnemy';
 import { NPC, DialogChoice } from './entities/NPC';
 import { Destructible } from './entities/Destructible';
 import { Level } from './world/Level';
@@ -192,6 +193,8 @@ export class GameEngine {
         return new ZombieEnemy(cfg.id, cfg.x, cfg.y);
       } else if (cfg.type === 'GHOUL') {
         return new GhoulEnemy(cfg.id, cfg.x, cfg.y, cfg.patrolMinX, cfg.patrolMaxX);
+      } else if (cfg.type === 'SKULL') {
+        return new SkullEnemy(cfg.id, cfg.x, cfg.y);
       } else {
         return new GhostEnemy(cfg.id, cfg.x, cfg.y);
       }
@@ -886,6 +889,8 @@ export class GameEngine {
           newEnemy = new ZombieEnemy(respawn.id, respawn.x, respawn.y);
         } else if (spawnCfg?.type === 'GHOUL') {
           newEnemy = new GhoulEnemy(respawn.id, respawn.x, respawn.y, spawnCfg.patrolMinX, spawnCfg.patrolMaxX);
+        } else if (spawnCfg?.type === 'SKULL') {
+          newEnemy = new SkullEnemy(respawn.id, respawn.x, respawn.y);
         } else {
           newEnemy = new GhostEnemy(respawn.id, respawn.x, respawn.y);
         }

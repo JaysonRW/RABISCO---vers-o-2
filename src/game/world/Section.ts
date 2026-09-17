@@ -23,7 +23,7 @@ export interface EdgeTrigger {
 
 export interface EnemySpawnConfig {
   id: string;
-  type: 'GHOST' | 'GHOUL' | 'ZOMBIE';
+  type: 'GHOST' | 'GHOUL' | 'ZOMBIE' | 'SKULL';
   x: number;
   y: number;
   patrolMinX?: number;
@@ -43,7 +43,7 @@ export interface NpcSpawnConfig {
 
 export interface DestructibleConfig {
   id: string;
-  type: 'box' | 'vase' | 'rubble';
+  type: 'box' | 'vase' | 'rubble' | 'urn' | 'bone_wall';
   x: number;
   y: number;
 }
@@ -80,7 +80,11 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
     loreNotes: [],
     edgeTriggers: [],
     enemySpawns: [],
-    destructibles: [],
+    destructibles: [
+      { id: 's_box_1', type: 'box', x: 180, y: 420 },
+      { id: 's_box_2', type: 'box', x: 220, y: 420 },
+      { id: 's_box_3', type: 'box', x: 780, y: 420 }
+    ],
     npcConfigs: [
       {
         id: 'lorde_carmim',
@@ -171,8 +175,17 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'm_ghost_1', type: 'GHOST', x: 560, y: 210 },
       { id: 'm_ghoul_1', type: 'GHOUL', x: 1220, y: 388, patrolMinX: 1000, patrolMaxX: 1550 },
       { id: 'm_ghost_2', type: 'GHOST', x: 1540, y: 200 },
+      { id: 'm_skull_1', type: 'SKULL', x: 350, y: 200 },
+      { id: 'm_skull_2', type: 'SKULL', x: 850, y: 250 },
+      { id: 'm_skull_3', type: 'SKULL', x: 1800, y: 200 },
     ],
-    destructibles: [],
+    destructibles: [
+      { id: 'm_box_1', type: 'box', x: 150, y: 400 },
+      { id: 'm_box_2', type: 'box', x: 190, y: 400 },
+      { id: 'm_box_3', type: 'box', x: 1020, y: 400 },
+      { id: 'm_box_4', type: 'box', x: 1060, y: 400 },
+      { id: 'm_box_5', type: 'box', x: 2120, y: 400 },
+    ],
     npcConfigs: [
       {
         id: 'hermit_monk',
@@ -281,12 +294,17 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'f_ghost_2', type: 'GHOST', x: 1200, y: 170 },
       { id: 'f_ghoul_3', type: 'GHOUL', x: 1980, y: 388, patrolMinX: 1760, patrolMaxX: 2360 },
       { id: 'f_ghost_3', type: 'GHOST', x: 2260, y: 170 },
+      { id: 'f_skull_1', type: 'SKULL', x: 500, y: 150 },
+      { id: 'f_skull_2', type: 'SKULL', x: 1400, y: 180 },
+      { id: 'f_skull_3', type: 'SKULL', x: 2100, y: 200 },
     ],
     destructibles: [
       { id: 'f_box_1', type: 'box', x: 160, y: 400 },
       { id: 'f_box_2', type: 'box', x: 210, y: 400 },
       { id: 'f_box_3', type: 'box', x: 800, y: 400 },
       { id: 'f_box_4', type: 'box', x: 1750, y: 400 },
+      { id: 'f_bone_1', type: 'bone_wall', x: 1400, y: 360 },
+      { id: 'f_bone_2', type: 'bone_wall', x: 2100, y: 360 },
     ],
     npcConfigs: [],
   },
@@ -352,6 +370,11 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'z8', type: 'ZOMBIE', x: 1950, y: 388, patrolMinX: 1900, patrolMaxX: 2480 },
       { id: 'z9', type: 'ZOMBIE', x: 2150, y: 388, patrolMinX: 1900, patrolMaxX: 2480 },
       { id: 'z10', type: 'ZOMBIE', x: 2350, y: 388, patrolMinX: 1900, patrolMaxX: 2480 },
+      // Caveiras flutuantes
+      { id: 'c_skull_1', type: 'SKULL', x: 400, y: 200 },
+      { id: 'c_skull_2', type: 'SKULL', x: 800, y: 150 },
+      { id: 'c_skull_3', type: 'SKULL', x: 1600, y: 180 },
+      { id: 'c_skull_4', type: 'SKULL', x: 2000, y: 150 },
     ],
     destructibles: [
       { id: 'crypt_urn1', type: 'urn', x: 280, y: 298 },
@@ -361,6 +384,9 @@ export const SECTIONS_DATA: Record<string, SectionData> = {
       { id: 'crypt_urn5', type: 'urn', x: 2050, y: 228 },
       { id: 'crypt_urn6', type: 'urn', x: 600, y: 398 }, // No chão
       { id: 'crypt_urn7', type: 'urn', x: 1600, y: 398 }, // No chão
+      { id: 'crypt_bone_1', type: 'bone_wall', x: 700, y: 360 }, 
+      { id: 'crypt_bone_2', type: 'bone_wall', x: 1720, y: 360 },
+      { id: 'crypt_bone_3', type: 'bone_wall', x: 2100, y: 360 },
     ],
     npcConfigs: [],
   },

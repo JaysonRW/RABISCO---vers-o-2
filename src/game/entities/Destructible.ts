@@ -5,7 +5,7 @@ import { GAME_CONFIG } from '../config';
 
 export class Destructible {
   public id: string;
-  public type: 'box' | 'vase' | 'rubble' | 'urn';
+  public type: 'box' | 'vase' | 'rubble' | 'urn' | 'bone_wall';
   public x: number;
   public y: number;
   public width: number;
@@ -15,7 +15,7 @@ export class Destructible {
   public isDestroying: boolean = false;
   public animTime: number = 0;
   
-  constructor(id: string, type: 'box' | 'vase' | 'rubble' | 'urn', x: number, y: number) {
+  constructor(id: string, type: 'box' | 'vase' | 'rubble' | 'urn' | 'bone_wall', x: number, y: number) {
     this.id = id;
     this.type = type;
     this.x = x;
@@ -30,6 +30,10 @@ export class Destructible {
       this.width = 30;
       this.height = 42;
       this.hp = 1;
+    } else if (type === 'bone_wall') {
+      this.width = 32;
+      this.height = 80;
+      this.hp = 3;
     } else if (type === 'vase') {
       this.width = 20;
       this.height = 28;
@@ -99,6 +103,26 @@ export class Destructible {
             shape: 'ink_splatter' as ParticleShape,
             rotation: Math.random() * Math.PI * 2,
             vRot: (Math.random() - 0.5) * 2
+          });
+        }
+      } else if (this.type === 'bone_wall') {
+        for (let i = 0; i < 15; i++) {
+          const vx = (Math.random() - 0.5) * 200;
+          const vy = -Math.random() * 200 - 50;
+          newParticles.push({
+            x: this.x + this.width / 2,
+            y: this.y + Math.random() * this.height,
+            vx: vx,
+            vy: vy,
+            color: Math.random() > 0.5 ? '#E0E0E0' : GAME_CONFIG.PALETTE.PEN_PRIMARY,
+            size: Math.random() * 4 + 2,
+            life: 0,
+            maxLife: 1.0 + Math.random() * 0.5,
+            alpha: 1.0,
+            gravity: 800,
+            shape: 'pen_scratch' as ParticleShape,
+            rotation: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 10
           });
         }
       } else {

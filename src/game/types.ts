@@ -36,6 +36,7 @@ export enum EnemyType {
   ZOMBIE = 'ZOMBIE',           // Zumbi
   GHOUL = 'GHOUL',             // Carniçal
   SKELETON = 'SKELETON',       // Esqueleto
+  SKULL = 'SKULL',             // Caveira Flutuante
 }
 
 export interface DamageInfo {

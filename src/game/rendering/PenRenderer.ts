@@ -1289,6 +1289,111 @@ export class PenRenderer {
     this.renderEnemyHealthBar(ctx, x, y - 16, w, hp, maxHp, 'ESPECTRO [IMUNE A FÍSICO]');
   }
 
+  // Renderiza a Caveira Flutuante
+  public renderSkull(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    facing: Direction,
+    animTime: number,
+    hp: number,
+    maxHp: number,
+    isHurt: boolean
+  ) {
+    ctx.save();
+    ctx.translate(x + w / 2, y + h / 2);
+
+    if (facing === Direction.LEFT) {
+      ctx.scale(-1, 1);
+    }
+
+    if (isHurt) {
+      ctx.translate((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
+    }
+
+    const primary = GAME_CONFIG.PALETTE.PEN_PRIMARY;
+    const dark = GAME_CONFIG.PALETTE.PEN_DARKEST;
+    
+    // Aura flutuante
+    ctx.beginPath();
+    ctx.arc(0, 0, w * 0.7 + Math.sin(animTime * 5) * 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 50, 150, 0.1)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Contorno da caveira
+    ctx.beginPath();
+    ctx.strokeStyle = dark;
+    ctx.fillStyle = '#f0f0f0';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Cranio
+    ctx.arc(0, -5, 12, Math.PI * 0.8, Math.PI * 2.2);
+    // Maçã do rosto
+    ctx.lineTo(8, 6);
+    // Mandíbula
+    ctx.lineTo(4, 14);
+    ctx.lineTo(-4, 14);
+    ctx.lineTo(-8, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Olhos profundos
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.ellipse(-4, -2, 3, 4, 0.2, 0, Math.PI * 2);
+    ctx.ellipse(4, -2, 3, 4, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Chama etérea nos olhos
+    ctx.fillStyle = GAME_CONFIG.PALETTE.HOLY_GOLD;
+    ctx.beginPath();
+    ctx.arc(-4, -1, 1.5, 0, Math.PI * 2);
+    ctx.arc(4, -1, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nariz
+    ctx.beginPath();
+    ctx.moveTo(0, 2);
+    ctx.lineTo(-2, 6);
+    ctx.lineTo(2, 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dentes rabiscados
+    ctx.beginPath();
+    ctx.moveTo(-6, 10);
+    ctx.lineTo(6, 10);
+    ctx.moveTo(-4, 8);
+    ctx.lineTo(-4, 12);
+    ctx.moveTo(0, 8);
+    ctx.lineTo(0, 12);
+    ctx.moveTo(4, 8);
+    ctx.lineTo(4, 12);
+    ctx.stroke();
+
+    // Hachura fina nas têmporas e bochechas
+    ctx.beginPath();
+    ctx.strokeStyle = GAME_CONFIG.PALETTE.PEN_HATCHING;
+    ctx.lineWidth = 1;
+    for (let i = -10; i < -5; i += 3) {
+      ctx.moveTo(-10, i);
+      ctx.lineTo(-5, i + 3);
+    }
+    for (let i = -10; i < -5; i += 3) {
+      ctx.moveTo(10, i);
+      ctx.lineTo(5, i + 3);
+    }
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   // Renderiza o Carniçal / Zumbi Amaldiçoado (Ghoul Enemy)
   public renderGhoul(
     ctx: CanvasRenderingContext2D,
@@ -1658,6 +1763,71 @@ export class PenRenderer {
            ctx.restore();
          }
          ctx.globalAlpha = 1.0;
+      }
+      ctx.restore();
+      return;
+    } else if (destType === 'bone_wall') {
+      let progress = 0;
+      if (isDestroying) {
+        progress = Math.min(1, animTime / 0.4);
+      }
+
+      ctx.strokeStyle = primary;
+      ctx.fillStyle = '#F5F5DC'; // Osso velho
+      
+      const drawBonePiece = (px, py, pw, ph, offX, offY, rot, alpha) => {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, alpha);
+          ctx.translate(px + pw/2 + offX, py + ph/2 + offY);
+          ctx.rotate(rot);
+          
+          ctx.fillRect(-pw/2, -ph/2, pw, ph);
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(-pw/2, -ph/2, pw, ph);
+          
+          // Detalhe de osso (rachadura)
+          ctx.beginPath();
+          ctx.moveTo(-pw/4, -ph/2);
+          ctx.lineTo(0, 0);
+          ctx.lineTo(pw/4, ph/3);
+          ctx.stroke();
+          
+          ctx.restore();
+      };
+
+      if (progress === 0) {
+         // Pilha intacta
+         ctx.fillRect(x, y, width, height);
+         
+         ctx.lineWidth = 2;
+         ctx.strokeRect(x, y, width, height);
+         
+         // Desenhar os ossos empilhados
+         ctx.lineWidth = 1.2;
+         const rows = 4;
+         for (let r = 0; r < rows; r++) {
+            const rowY = y + (r * (height / rows));
+            ctx.beginPath();
+            ctx.moveTo(x, rowY);
+            ctx.lineTo(x + width, rowY);
+            ctx.stroke();
+            
+            // X ou Caveira abstrata para textura
+            ctx.beginPath();
+            ctx.arc(x + width/2, rowY + (height / rows)/2, width*0.2, 0, Math.PI*2);
+            ctx.stroke();
+         }
+         
+      } else {
+         // Animação de quebra da parede de ossos
+         const alpha = 1 - progress;
+         const dist = progress * 35; 
+         const rotMax = Math.PI / 2;
+         
+         drawBonePiece(x, y, width, height/4, -dist, -dist - progress*15, -progress*rotMax, alpha);
+         drawBonePiece(x, y + height/4, width, height/4, dist, -dist*0.5, progress*rotMax, alpha);
+         drawBonePiece(x, y + height/2, width, height/4, -dist, dist*0.5, -progress*rotMax, alpha);
+         drawBonePiece(x, y + height*0.75, width, height/4, dist, dist, progress*rotMax, alpha);
       }
       ctx.restore();
       return;

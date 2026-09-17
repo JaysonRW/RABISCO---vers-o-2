@@ -42,6 +42,12 @@ export const GAME_CONFIG = {
     ATTACK_COOLDOWN: 1.5,
     DETECTION_RADIUS: 240,
   },
+  SKULL: {
+    WIDTH: 32,
+    HEIGHT: 32,
+    MAX_HP: 1,
+    DAMAGE: 0,
+  },
 
   // Sistema de Almas e Ascensão
   ASCENSION: {
